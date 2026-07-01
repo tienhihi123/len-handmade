@@ -1,0 +1,139 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default-deny Catch-all Gate
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    // Global Security Helper Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+    
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    
+    function incoming() {
+      return request.resource.data;
+    }
+    
+    function existing() {
+      return resource.data;
+    }
+    
+    // Validation Helpers (Anti-Update-Gap)
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'name', 'email', 'role', 'status'])
+        && data.keys().size() <= 12
+        && data.id is string
+        && data.name is string && data.name.size() <= 100
+        && data.email is string && data.email.size() <= 100
+        && data.role in ["customer", "admin"]
+        && data.status in ["active", "locked"]
+        && (data.get('avatar', '') is string && data.get('avatar', '').size() <= 500)
+        && (data.get('totalLoginCount', 0) is int)
+        && (data.get('coins', 0) is int);
+    }
+    
+    function isValidCartItem(data) {
+      return data.keys().hasAll(['id', 'productId', 'quantity'])
+        && data.keys().size() <= 8
+        && data.id is string && data.id.size() <= 200
+        && data.productId is string && data.productId.size() <= 100
+        && data.quantity is int && data.quantity >= 0
+        && (data.get('selectedColor', '') is string && data.get('selectedColor', '').size() <= 100)
+        && (data.get('selectedSize', '') is string && data.get('selectedSize', '').size() <= 100)
+        && (data.get('selectedMaterial', '') is string && data.get('selectedMaterial', '').size() <= 100);
+    }
+    
+    function isValidFavorite(data) {
+      return data.keys().hasAll(['productId'])
+        && data.keys().size() <= 3
+        && data.productId is string && data.productId.size() <= 100;
+    }
+    
+    function isValidOrder(data) {
+      return data.keys().hasAll(['id', 'customerName', 'itemsCount', 'totalPrice', 'status', 'shippingAddress'])
+        && data.keys().size() <= 12
+        && data.id is string && data.id.size() <= 100
+        && data.customerName is string && data.customerName.size() <= 200
+        && data.itemsCount is int && data.itemsCount >= 0
+        && (data.totalPrice is number || data.totalPrice is int) && data.totalPrice >= 0
+        && data.status in ["Chờ xác nhận", "Đang khâu dệt", "Đang vận chuyển", "Đã giao", "Đã hủy"]
+        && data.shippingAddress is string && data.shippingAddress.size() <= 500
+        && (data.get('customerEmail', '') is string && data.get('customerEmail', '').size() <= 100)
+        && (data.get('discountApplied', 0) is number || data.get('discountApplied', 0) is int)
+        && (data.get('coinsUsed', 0) is int);
+    }
+    
+    function isValidReturnRequest(data) {
+      return data.keys().hasAll(['id', 'orderId', 'productName', 'reason', 'status', 'createdAt'])
+        && data.keys().size() <= 8
+        && data.id is string && data.id.size() <= 100
+        && data.orderId is string && data.orderId.size() <= 100
+        && data.productName is string && data.productName.size() <= 200
+        && data.reason is string && data.reason.size() <= 1000
+        && data.status in ["Chờ xử lý", "Đã chấp nhận", "Đã từ chối"]
+        && (data.createdAt is string || data.createdAt is timestamp);
+    }
+
+    // 1. Users Profiles Rules
+    match /users/{userId} {
+      allow read, get: if isOwner(userId) || isAdmin();
+      
+      // Enforce zero-trust self-assignment role blocker & schema check
+      allow create: if isOwner(userId) 
+        && isValidId(userId)
+        && incoming().role == "customer" 
+        && incoming().status == "active" 
+        && isValidUser(incoming());
+        
+      allow update: if (isOwner(userId) && incoming().role == existing().role && incoming().status == existing().status && isValidUser(incoming()))
+        || isAdmin();
+        
+      allow delete: if isAdmin();
+      
+      // 2. Sub-Collection: Cart
+      match /cart/{itemId} {
+        allow read, write: if isOwner(userId) && isValidId(itemId);
+        allow create, update: if isOwner(userId) && isValidCartItem(incoming());
+      }
+      
+      // 3. Sub-Collection: Wishlist/Favorites
+      match /wishlist/{productId} {
+        allow read, write: if isOwner(userId) && isValidId(productId);
+        allow create, update: if isOwner(userId) && isValidFavorite(incoming());
+      }
+      
+      // 4. Sub-Collection: Orders
+      match /orders/{orderId} {
+        allow read, get: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidOrder(incoming());
+        allow update: if isAdmin() || (isOwner(userId) && incoming().status == existing().status && isValidOrder(incoming()));
+        allow delete: if isAdmin();
+      }
+    }
+    
+    // 5. Returns Collection
+    match /returns/{returnId} {
+      allow read, get: if isAdmin();
+      // Allow customers to list and build return requests
+      allow create: if isSignedIn() && isValidId(returnId) && isValidReturnRequest(incoming());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+  }
+}

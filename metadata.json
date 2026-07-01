@@ -1,0 +1,8 @@
+{
+  "name": "Len Handmade",
+  "description": "Cửa hàng e-commerce sản phẩm len thủ công cao cấp. Tinh tế, ấm áp, độc đáo.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

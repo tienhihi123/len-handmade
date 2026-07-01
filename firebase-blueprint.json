@@ -1,0 +1,100 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores core details for authenticating customers and administrators, including current role, state, and accumulated rewards coins.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "The unique user authentication ID (UID)." },
+        "name": { "type": "string", "description": "Display name of the user." },
+        "email": { "type": "string", "description": "Registered email address." },
+        "role": { "type": "string", "enum": ["customer", "admin"], "description": "Determines application permissions." },
+        "status": { "type": "string", "enum": ["active", "locked"], "description": "Account status flag." },
+        "avatar": { "type": "string", "description": "URL to the user profile avatar photo." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "ISO timestamp of profile creation." },
+        "lastLoginAt": { "type": "string", "format": "date-time", "description": "ISO timestamp of last successful authentication." },
+        "totalLoginCount": { "type": "integer", "description": "Accumulative login count." },
+        "coins": { "type": "integer", "description": "Loyalty reward point wallet balance." }
+      },
+      "required": ["id", "name", "email", "role", "status"]
+    },
+    "CartItem": {
+      "title": "Cart Entry",
+      "description": "An item in the user's active shopping cart, including selected customization options.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique composite identifier of the cart item (productId + options)." },
+        "productId": { "type": "string", "description": "Reference to the selected product." },
+        "selectedColor": { "type": "string", "description": "Color name chosen by the patron." },
+        "selectedSize": { "type": "string", "description": "Size name or code chosen by the patron." },
+        "selectedMaterial": { "type": "string", "description": "Material quality chosen by the patron." },
+        "quantity": { "type": "integer", "description": "Number of items requested." }
+      },
+      "required": ["id", "productId", "quantity"]
+    },
+    "Favorite": {
+      "title": "Favorite Product",
+      "description": "Stores a product identifier that has been added to the user's wishlist.",
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string", "description": "Core product identifier favorited by the patron." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when added." }
+      },
+      "required": ["productId"]
+    },
+    "Order": {
+      "title": "Customer Order",
+      "description": "Represents a purchase invoice with real physical and virtual state transitions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique purchase order identifier." },
+        "customerName": { "type": "string", "description": "Consignee delivery name." },
+        "customerEmail": { "type": "string", "description": "Email address for transactional updates." },
+        "itemsCount": { "type": "integer", "description": "Sum of total unit quantities in the order." },
+        "totalPrice": { "type": "number", "description": "Payment amount due." },
+        "time": { "type": "string", "format": "date-time", "description": "Epoch timestamp of purchase." },
+        "status": { "type": "string", "enum": ["Chờ xác nhận", "Đang khâu dệt", "Đang vận chuyển", "Đã giao", "Đã hủy"] },
+        "shippingAddress": { "type": "string", "description": "Real physical delivery location." },
+        "discountApplied": { "type": "number", "description": "Financial voucher coupon discount." },
+        "coinsUsed": { "type": "integer", "description": "Fidelity points redeemed during checkouts." }
+      },
+      "required": ["id", "customerName", "itemsCount", "totalPrice", "status", "shippingAddress"]
+    },
+    "ReturnRequest": {
+      "title": "Return Case",
+      "description": "Patron request to return customized crochet goods or services due to weave issues.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique return request case ID." },
+        "orderId": { "type": "string", "description": "Reference of the origin purchase invoice." },
+        "productName": { "type": "string", "description": "Name of the returned item." },
+        "reason": { "type": "string", "description": "Textual prompt describing issue." },
+        "status": { "type": "string", "enum": ["Chờ xử lý", "Đã chấp nhận", "Đã từ chối"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "orderId", "productName", "reason", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Authentic profiles of Len Handmade clients and administrators."
+    },
+    "/users/{userId}/cart/{itemId}": {
+      "schema": "CartItem",
+      "description": "Active shopping cart storage, synchronized when authenticated."
+    },
+    "/users/{userId}/wishlist/{productId}": {
+      "schema": "Favorite",
+      "description": "Wishlist products specified by the user."
+    },
+    "/users/{userId}/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Customer order purchase invoice logs."
+    },
+    "/returns/{returnId}": {
+      "schema": "ReturnRequest",
+      "description": "Return applications submitted by customers for admin analysis."
+    }
+  }
+}

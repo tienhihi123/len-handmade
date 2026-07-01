@@ -1,0 +1,62 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npx vite *)",
+      "Bash(npx tsc *)",
+      "Bash(npm cache *)",
+      "Bash(npm config *)",
+      "Bash(npm install *)",
+      "Bash(node *)",
+      "Skill(code-review)",
+      "Skill(design-system)",
+      "Skill(component-builder)",
+      "Skill(marketing-content)",
+      "Skill(e-commerce)",
+      "Skill(typescript-strict)",
+      "Skill(react-patterns)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(git push *)",
+      "Bash(npm publish *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$(date): $CLAUDE_TOOL_NAME on $CLAUDE_TOOL_OUTPUT_FILE\" >> ~/.claude/activity.log"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command \"[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null; [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null; $template = @'<?xml version=\\\"1.0\\\"?><toast><visual><binding template=\\\"ToastText02\\\"><text id=\\\"1\\\">Claude Code</text><text id=\\\"2\\\">Claude Code cần bạn</text></binding></visual></toast>'@; $xml = New-Object Windows.Data.Xml.Dom.XmlDocument; $xml.LoadXml($template); $toast = [Windows.UI.Notifications.ToastNotification]::new($xml); [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Claude Code').Show($toast)\""
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -NoProfile -Command \"[console]::beep(900,250)\""
+          }
+        ]
+      }
+    ]
+  },
+  "model": "claude-sonnet-4-5",
+  "spinnerTipsEnabled": false
+}

@@ -1,0 +1,16 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# OAuth credentials for MCP servers
+credentials.json
+token.json
+
+# Private Claude config (per .claude/rules/workflow.md)
+.claude/CLAUDE.local.md
+.claude/settings.local.json
