@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { Phone, Mail, MapPin, Clock, Send, CheckCircle2, Navigation } from "lucide-react";
+import { Phone, Mail, MapPin, Clock, Send, CheckCircle2, Navigation, LogIn } from "lucide-react";
 import { BRAND_EMAIL } from "../constants/brand";
+import { useApp } from "../context/AppContext";
+import { submitFeedbackToFirestore } from "../lib/firestoreFeedback";
 
 export default function ContactPage() {
   const location = useLocation();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const navigate = useNavigate();
+  const { currentUser } = useApp();
   const [msg, setMsg] = useState("");
   const [sent, setSent] = useState(false);
 
@@ -20,11 +22,16 @@ export default function ContactPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !email.trim() || !msg.trim()) return;
+    if (!currentUser || !msg.trim()) return;
+
+    submitFeedbackToFirestore({
+      userId: currentUser.id,
+      userName: currentUser.name,
+      userEmail: currentUser.email,
+      message: msg
+    });
 
     setSent(true);
-    setName("");
-    setEmail("");
     setMsg("");
     setTimeout(() => setSent(false), 3000);
   };
@@ -109,52 +116,40 @@ export default function ContactPage() {
               Chúng mình lắng tai ghi nhận mọi ý kiến, mong mỏi dệt custom túi nơ hoa trang trí ngày hội.
             </p>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs lg:text-sm font-sans font-medium text-brand-fb/60 uppercase mb-1.5">Tên quý danh của Nàng:</label>
-                  <input
-                    type="text"
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Nguyễn Ánh Tuyết..."
-                    className="w-full text-sm lg:text-base font-sans px-4 py-3 rounded-xl border border-brand-primary/20 bg-white text-brand-fb outline-none focus:ring-2 focus:ring-brand-primary/20"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs lg:text-sm font-sans font-medium text-brand-fb/60 uppercase mb-1.5">Hòm mail gửi tin:</label>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="anhtuyet@gmail.com..."
-                    className="w-full text-sm lg:text-base font-sans px-4 py-3 rounded-xl border border-brand-primary/20 bg-white text-brand-fb outline-none focus:ring-2 focus:ring-brand-primary/20"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs lg:text-sm font-sans font-medium text-brand-fb/60 uppercase mb-1.5">Lời dệt nhắn của nàng:</label>
-                <textarea
-                  required
-                  rows={4}
-                  value={msg}
-                  onChange={(e) => setMsg(e.target.value)}
-                  placeholder="Nàng thương, mình muốn thắt bó salix tulip hồng móc kèm charm tên 'Sóc Nhỏ'. Mong thợ dệt gói hộp lụa mộc sang quý giúp..."
-                  className="w-full text-sm lg:text-base font-sans px-4 py-3 rounded-xl border border-brand-primary/20 bg-white text-brand-fb outline-none focus:ring-2 focus:ring-brand-primary/20"
-                />
-              </div>
-
+            {!currentUser ? (
               <button
-                type="submit"
-                className="w-full bg-brand-primary hover:bg-brand-primary/90 text-white text-sm lg:text-base font-medium uppercase tracking-wider min-h-11 px-4 py-2.5 rounded-xl transition-colors duration-200 cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+                onClick={() => navigate("/login", { state: { from: location.pathname } })}
+                className="w-full flex items-center justify-center gap-2 bg-brand-bg hover:bg-brand-primary/10 border border-dashed border-brand-primary/30 text-brand-fb text-sm font-semibold min-h-11 px-4 py-2.5 rounded-xl transition-colors duration-200 cursor-pointer"
               >
-                <Send size={16} />
-                Gửi Hài Lòng Tin nhắn dệt
+                <LogIn size={16} /> Đăng nhập để gửi phản hồi
               </button>
-            </form>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <p className="text-xs text-brand-fb/50 font-sans">
+                  Gửi với tư cách <strong className="text-brand-fb/80">{currentUser.name}</strong> ({currentUser.email})
+                </p>
+
+                <div>
+                  <label className="block text-xs lg:text-sm font-sans font-medium text-brand-fb/60 uppercase mb-1.5">Lời dệt nhắn của nàng:</label>
+                  <textarea
+                    required
+                    rows={4}
+                    value={msg}
+                    onChange={(e) => setMsg(e.target.value)}
+                    placeholder="Nàng thương, mình muốn thắt bó salix tulip hồng móc kèm charm tên 'Sóc Nhỏ'. Mong thợ dệt gói hộp lụa mộc sang quý giúp..."
+                    className="w-full text-sm lg:text-base font-sans px-4 py-3 rounded-xl border border-brand-primary/20 bg-white text-brand-fb outline-none focus:ring-2 focus:ring-brand-primary/20"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full bg-brand-primary hover:bg-brand-primary/90 text-white text-sm lg:text-base font-medium uppercase tracking-wider min-h-11 px-4 py-2.5 rounded-xl transition-colors duration-200 cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+                >
+                  <Send size={16} />
+                  Gửi Hài Lòng Tin nhắn dệt
+                </button>
+              </form>
+            )}
 
             <AnimatePresence>
               {sent && (

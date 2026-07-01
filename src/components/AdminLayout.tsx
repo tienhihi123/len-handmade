@@ -12,7 +12,8 @@ import {
   BookOpen,
   Settings,
   LogOut,
-  Search
+  Search,
+  Star
 } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { BRAND_NAME } from "../constants/brand";
@@ -25,6 +26,7 @@ const adminMenu = [
   { label: "Báo cáo doanh thu", path: "/admin/revenue", icon: BarChart3 },
   { label: "Khách hàng", path: "/admin/customers", icon: Users },
   { label: "Thông báo", path: "/admin/notifications", icon: Bell },
+  { label: "Đánh giá & Phản hồi", path: "/admin/reviews-feedback", icon: Star },
   { label: "Blog / Tin tức", path: "/admin/blog", icon: FileText },
   { label: "Tài liệu kỹ thuật", path: "/admin/docs", icon: BookOpen },
   { label: "Cài đặt", path: "/admin/settings", icon: Settings }

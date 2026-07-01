@@ -90,6 +90,27 @@ service cloud.firestore {
         && (data.createdAt is string || data.createdAt is timestamp);
     }
 
+    function isValidReview(data) {
+      return data.keys().hasAll(['productId', 'userId', 'authorName', 'rating', 'text', 'status'])
+        && data.keys().size() <= 8
+        && data.productId is string && data.productId.size() <= 100
+        && data.userId is string
+        && data.authorName is string && data.authorName.size() <= 100
+        && data.rating is int && data.rating >= 1 && data.rating <= 5
+        && data.text is string && data.text.size() <= 1000
+        && data.status == "pending";
+    }
+
+    function isValidFeedback(data) {
+      return data.keys().hasAll(['userId', 'userName', 'userEmail', 'message', 'status'])
+        && data.keys().size() <= 7
+        && data.userId is string
+        && data.userName is string && data.userName.size() <= 100
+        && data.userEmail is string && data.userEmail.size() <= 100
+        && data.message is string && data.message.size() <= 2000
+        && data.status == "new";
+    }
+
     // 1. Users Profiles Rules
     match /users/{userId} {
       allow read, get: if isOwner(userId) || isAdmin();
@@ -132,6 +153,21 @@ service cloud.firestore {
       allow read, get: if isAdmin();
       // Allow customers to list and build return requests
       allow create: if isSignedIn() && isValidId(returnId) && isValidReturnRequest(incoming());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // 6. Product Reviews (subcollection, moderated)
+    match /products/{productId}/reviews/{reviewId} {
+      allow read: if existing().status == "approved" || isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid && isValidReview(incoming());
+      allow update, delete: if isAdmin();
+    }
+
+    // 7. General Customer Feedback (tied to account)
+    match /feedback/{feedbackId} {
+      allow read: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid && isValidFeedback(incoming());
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }

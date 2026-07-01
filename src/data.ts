@@ -284,6 +284,8 @@ export const PRODUCTS: Product[] = [
 export const REVIEWS: Review[] = [
   {
     id: "rev_1",
+    productId: "new_butterfly_top",
+    status: "approved",
     author: "Nguyễn Khánh Linh",
     text: "Sản phẩm thực sự rất rất dệt tay xinh đẹp luôn á! Sợi len sờ mịn không hề ráp, đặc biệt quai gỗ thơm tự nhiên sang trọng cực kì dệt sọc hoa tỉ mỉ dã man. Đóng gói hộp xi măng xinh xắn hương hoa dịu thơm nữa, 5 sao!",
     rating: 5,
@@ -293,6 +295,8 @@ export const REVIEWS: Review[] = [
   },
   {
     id: "rev_2",
+    productId: "new_mini_pouch",
+    status: "approved",
     author: "Lê Minh Thảo",
     text: "Bó tulip len màu pastel siêu thơ dã man luôn, mua tặng tốt nghiệp bạn thân mà nó ưng giữ mãi làm kỉ niệm phòng khách hoài. Chăm sóc tư vấn siêu thương xỉu, sẽ ủng hộ dài hạn cho đồ tốt nghiệp tới.",
     rating: 5,
@@ -302,6 +306,8 @@ export const REVIEWS: Review[] = [
   },
   {
     id: "rev_3",
+    productId: "new_sunflower_bag",
+    status: "approved",
     author: "Phan Anh Thư",
     text: "Túi len dệt cứng cáp phom cực chuẩn, chất len dệt đanh kĩ lưỡng không bị rão chảy chút nào. Có khóa lót lụa bên trong rất an tâm để son và tai nghe nhỏ. Xuất sắc dệt thủ công Việt Nam quá đỉnh!",
     rating: 5,

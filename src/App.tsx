@@ -33,6 +33,7 @@ import AdminOrdersPage from "./pages/AdminOrdersPage";
 import AdminRevenuePage from "./pages/AdminRevenuePage";
 import AdminCustomersPage from "./pages/AdminCustomersPage";
 import AdminNotificationsPage from "./pages/AdminNotificationsPage";
+import AdminReviewsFeedbackPage from "./pages/AdminReviewsFeedbackPage";
 import AdminBlogPage from "./pages/AdminBlogPage";
 import AdminDocsPage from "./pages/AdminDocsPage";
 import AdminSettingsPage from "./pages/AdminSettingsPage";
@@ -94,6 +95,7 @@ export default function App() {
             <Route path="revenue" element={<AdminRevenuePage />} />
             <Route path="customers" element={<AdminCustomersPage />} />
             <Route path="notifications" element={<AdminNotificationsPage />} />
+            <Route path="reviews-feedback" element={<AdminReviewsFeedbackPage />} />
             <Route path="blog" element={<AdminBlogPage />} />
             <Route path="docs" element={<AdminDocsPage />} />
             <Route path="settings" element={<AdminSettingsPage />} />

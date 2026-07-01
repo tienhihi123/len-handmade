@@ -73,12 +73,42 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "orderId", "productName", "reason", "status", "createdAt"]
+    },
+    "Review": {
+      "title": "Product Review",
+      "description": "A star rating and comment left by a signed-in customer on a specific product, subject to admin moderation before public display.",
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string", "description": "Product this review belongs to (also the parent path segment)." },
+        "userId": { "type": "string", "description": "UID of the reviewer, must match request.auth.uid on create." },
+        "authorName": { "type": "string", "description": "Display name snapshot at submission time." },
+        "authorAvatar": { "type": "string", "description": "Avatar URL snapshot at submission time." },
+        "rating": { "type": "integer", "description": "Star rating from 1 to 5." },
+        "text": { "type": "string", "description": "Review comment body." },
+        "status": { "type": "string", "enum": ["pending", "approved", "hidden"], "description": "Moderation state; only 'approved' is publicly visible." },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["productId", "userId", "authorName", "rating", "text", "status"]
+    },
+    "Feedback": {
+      "title": "Customer Feedback",
+      "description": "General feedback or inquiry submitted by a signed-in customer through the Contact page, tied to their account.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "UID of the sender, must match request.auth.uid on create." },
+        "userName": { "type": "string", "description": "Display name of the sender." },
+        "userEmail": { "type": "string", "description": "Email of the sender for follow-up." },
+        "message": { "type": "string", "description": "Feedback message body." },
+        "status": { "type": "string", "enum": ["new", "read", "resolved"], "description": "Admin triage state." },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userName", "userEmail", "message", "status"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "User",
-      "description": "Authentic profiles of Len Handmade clients and administrators."
+      "description": "Authentic profiles of Tiem Len Nho clients and administrators."
     },
     "/users/{userId}/cart/{itemId}": {
       "schema": "CartItem",
@@ -95,6 +125,14 @@
     "/returns/{returnId}": {
       "schema": "ReturnRequest",
       "description": "Return applications submitted by customers for admin analysis."
+    },
+    "/products/{productId}/reviews/{reviewId}": {
+      "schema": "Review",
+      "description": "Per-product star ratings and comments, moderated before public display."
+    },
+    "/feedback/{feedbackId}": {
+      "schema": "Feedback",
+      "description": "General account-linked feedback submitted via the Contact page."
     }
   }
 }

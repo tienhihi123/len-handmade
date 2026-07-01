@@ -1,24 +1,26 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { 
-  Heart, Star, ArrowLeft, RefreshCw, Sparkles, CheckCircle2, 
-  ChevronRight, Shield, Globe, Award, Copy, HelpCircle, Eye, ShoppingBag
+import {
+  Heart, Star, ArrowLeft, RefreshCw, Sparkles, CheckCircle2,
+  ChevronRight, Shield, Globe, Award, Copy, HelpCircle, Eye, ShoppingBag, LogIn
 } from "lucide-react";
 import { useApp } from "../context/AppContext";
-import { Product, CartItem } from "../types";
+import { Product, CartItem, Review } from "../types";
 import SafeImage from "../components/SafeImage";
 import { usePageSeo } from "../hooks/usePageSeo";
 import { calculateItemPrice, parseSizeModifier } from "../utils/pricing";
 import { BRAND_NAME } from "../constants/brand";
+import { isFirebaseConfigured } from "../lib/firebase";
+import { submitReviewToFirestore, subscribeToProductReviews } from "../lib/firestoreReviews";
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { 
-    productsList, reviewsList, setReviewsList, trackView, 
-    wishlist, setWishlist, viewStats, cart, setCart, addActivity
+  const {
+    productsList, reviewsList, setReviewsList, trackView,
+    wishlist, setWishlist, viewStats, cart, setCart, addActivity, currentUser
   } = useApp();
 
   // Find the current product
@@ -38,10 +40,10 @@ export default function ProductDetailPage() {
   const [videoModalOpen, setVideoModalOpen] = useState(false);
 
   // Review submission states
-  const [author, setAuthor] = useState("");
   const [text, setText] = useState("");
   const [rating, setRating] = useState(5);
   const [reviewSent, setReviewSent] = useState(false);
+  const [liveReviews, setLiveReviews] = useState<Review[]>([]);
 
   // Trigger telemetry tracking and load default options
   useEffect(() => {
@@ -64,6 +66,13 @@ export default function ProductDetailPage() {
       setCustomNote("");
     }
   }, [product, id, location.state]);
+
+  // Live Firestore reviews for this product (no-op when Firebase isn't configured)
+  useEffect(() => {
+    if (!product) return;
+    const unsubscribe = subscribeToProductReviews(product.id, currentUser?.id, setLiveReviews);
+    return unsubscribe;
+  }, [product?.id, currentUser?.id]);
 
   if (!product) {
     return (
@@ -158,24 +167,45 @@ export default function ProductDetailPage() {
 
   const handleReviewSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!author.trim() || !text.trim()) return;
+    if (!currentUser || !text.trim()) return;
 
-    const addedReview = {
-      id: `rev_detail_${Date.now()}`,
-      author,
-      text,
-      rating,
-      role: `Nàng mua mẫu ${product.name}`,
-      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150",
-      date: "Vừa xong"
-    };
+    if (isFirebaseConfigured) {
+      submitReviewToFirestore({
+        productId: product.id,
+        userId: currentUser.id,
+        authorName: currentUser.name,
+        authorAvatar: currentUser.avatar,
+        rating,
+        text
+      });
+    } else {
+      const addedReview: Review = {
+        id: `rev_detail_${Date.now()}`,
+        productId: product.id,
+        userId: currentUser.id,
+        status: "approved",
+        author: currentUser.name,
+        text,
+        rating,
+        role: `Nàng mua mẫu ${product.name}`,
+        avatar: currentUser.avatar,
+        date: "Vừa xong"
+      };
+      setReviewsList(prev => [addedReview, ...prev]);
+    }
 
-    setReviewsList(prev => [addedReview, ...prev]);
-    setAuthor("");
     setText("");
     setReviewSent(true);
     setTimeout(() => setReviewSent(false), 3000);
   };
+
+  // Reviews for this product only: approved for everyone, plus the viewer's own pending/hidden ones
+  const productReviews: Review[] = [
+    ...reviewsList.filter(
+      (r) => r.productId === product.id && (r.status === "approved" || (currentUser && r.userId === currentUser.id))
+    ),
+    ...liveReviews
+  ];
 
   // 3 related products
   const relatedProducts = productsList.filter(p => p.category === product.category && p.id !== product.id).slice(0, 3);
@@ -555,34 +585,17 @@ export default function ProductDetailPage() {
           
           <div className="lg:col-span-7 space-y-6">
             <h2 className="font-serif font-bold text-xl text-brand-fb text-left border-b border-brand-primary/10 pb-4">
-              Cảm từ gọng chỉ dệt ({reviewsList.length + 1})
+              Cảm từ gọng chỉ dệt ({productReviews.length})
             </h2>
 
             <div className="space-y-4">
-              {/* Default detailed review for custom feel */}
-              <div className="p-5 bg-white rounded-2xl border border-brand-primary/5 shadow-sm text-left flex gap-4">
-                <img
-                  src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=150"
-                  alt="Jane Doe"
-                  className="w-10 h-10 rounded-full object-cover border"
-                  referrerPolicy="no-referrer"
-                />
-                <div className="flex-grow space-y-1">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-serif font-bold text-xs text-brand-fb">Linh Đan (Nàng thơ Hà Nội)</h4>
-                    <div className="flex text-yellow-500">
-                      <Star size={9} className="fill-current" /><Star size={9} className="fill-current" /><Star size={9} className="fill-current" /><Star size={9} className="fill-current" /><Star size={9} className="fill-current" />
-                    </div>
-                  </div>
-                  <span className="text-[9px] bg-brand-accent/15 text-brand-fb/80 px-1.5 py-0.5 rounded-md font-sans block w-fit">Đang mua Cotton Mộc Phấn</span>
-                  <p className="font-sans text-xs text-brand-fb/75 italic leading-relaxed">
-                    “Dệt móc xịn dã man luôn đó ạ, túi lavender phồng tròn to đú đẩm dầy rực rỡ, hộp lụa mộc thắt dây thừng gai kẹp cành salix nhài tỏa khói thơm nức lòng luôn.”
-                  </p>
-                  <span className="text-[9px] font-mono text-brand-fb/20 block">2 ngày trước</span>
-                </div>
-              </div>
+              {productReviews.length === 0 && (
+                <p className="font-sans text-xs text-brand-fb/50 italic">
+                  Chưa có đánh giá nào cho mẫu này. Hãy là người đầu tiên chia sẻ cảm nhận!
+                </p>
+              )}
 
-              {reviewsList.map((rev) => (
+              {productReviews.map((rev) => (
                 <div key={rev.id} className="p-5 bg-white rounded-2xl border border-brand-primary/5 shadow-sm text-left flex gap-4">
                   <img
                     src={rev.avatar}
@@ -614,54 +627,51 @@ export default function ProductDetailPage() {
               <h3 className="font-serif font-bold text-md text-brand-fb">Góp Một Kim Sợi Ý</h3>
               <p className="font-sans text-xs text-brand-fb/60 pb-2">Nếu đã từng lướt hay ôm mẫu sợi này, hân hoan gõ dệt vài dòng làm quà tặng tinh thần cho các thợ Len nhé!</p>
 
-              <form onSubmit={handleReviewSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs lg:text-sm font-sans font-medium text-brand-fb/60 uppercase mb-1">Tên nàng dệt:</label>
-                  <input
-                    type="text"
-                    required
-                    value={author}
-                    onChange={(e) => setAuthor(e.target.value)}
-                    placeholder="Mỹ Hoa Sài Gòn..."
-                    className="w-full text-sm lg:text-base font-sans px-4 py-3 rounded-xl border border-brand-primary/20 bg-white text-brand-fb outline-none focus:ring-2 focus:ring-brand-primary/20"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs lg:text-sm font-sans font-medium text-brand-fb/60 uppercase mb-1">Số sao yêu chuộng:</label>
-                  <div className="flex gap-1.5">
-                    {[1, 2, 3, 4, 5].map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => setRating(s)}
-                        className="p-0.5 text-yellow-500 cursor-pointer"
-                      >
-                        <Star size={18} className={rating >= s ? "fill-current" : "text-gray-300"} />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs lg:text-sm font-sans font-medium text-brand-fb/60 uppercase mb-1">Cảm tưởng chạm len:</label>
-                  <textarea
-                    required
-                    rows={3}
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    placeholder="Mũi dệt căng tròn, thêu tên ngộ nghĩnh mềm mại lắm các chị thợ dệt ơi..."
-                    className="w-full text-sm lg:text-base font-sans px-4 py-3 rounded-xl border border-brand-primary/20 bg-white text-brand-fb outline-none focus:ring-2 focus:ring-brand-primary/20"
-                  />
-                </div>
-
+              {!currentUser ? (
                 <button
-                  type="submit"
-                  className="w-full bg-brand-primary hover:bg-brand-primary/90 text-white text-sm lg:text-base font-medium min-h-11 px-4 py-2.5 rounded-xl transition-colors duration-200 cursor-pointer"
+                  onClick={() => navigate("/login", { state: { from: location.pathname } })}
+                  className="w-full flex items-center justify-center gap-2 bg-brand-bg hover:bg-brand-primary/10 border border-dashed border-brand-primary/30 text-brand-fb text-sm font-semibold min-h-11 px-4 py-2.5 rounded-xl transition-colors duration-200 cursor-pointer"
                 >
-                  Gửi tặng đánh giá
+                  <LogIn size={16} /> Đăng nhập để đánh giá
                 </button>
-              </form>
+              ) : (
+                <form onSubmit={handleReviewSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-xs lg:text-sm font-sans font-medium text-brand-fb/60 uppercase mb-1">Số sao yêu chuộng:</label>
+                    <div className="flex gap-1.5">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setRating(s)}
+                          className="p-0.5 text-yellow-500 cursor-pointer"
+                        >
+                          <Star size={18} className={rating >= s ? "fill-current" : "text-gray-300"} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs lg:text-sm font-sans font-medium text-brand-fb/60 uppercase mb-1">Cảm tưởng chạm len:</label>
+                    <textarea
+                      required
+                      rows={3}
+                      value={text}
+                      onChange={(e) => setText(e.target.value)}
+                      placeholder="Mũi dệt căng tròn, thêu tên ngộ nghĩnh mềm mại lắm các chị thợ dệt ơi..."
+                      className="w-full text-sm lg:text-base font-sans px-4 py-3 rounded-xl border border-brand-primary/20 bg-white text-brand-fb outline-none focus:ring-2 focus:ring-brand-primary/20"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full bg-brand-primary hover:bg-brand-primary/90 text-white text-sm lg:text-base font-medium min-h-11 px-4 py-2.5 rounded-xl transition-colors duration-200 cursor-pointer"
+                  >
+                    Gửi tặng đánh giá
+                  </button>
+                </form>
+              )}
 
               <AnimatePresence>
                 {reviewSent && (

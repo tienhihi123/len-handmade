@@ -71,12 +71,25 @@ export interface Category {
 
 export interface Review {
   id: string;
+  productId?: string;
+  userId?: string;
+  status?: "pending" | "approved" | "hidden";
   author: string;
   text: string;
   rating: number;
   role: string;
   avatar: string;
   date: string;
+}
+
+export interface Feedback {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  message: string;
+  status: "new" | "read" | "resolved";
+  createdAt: string;
 }
 
 export interface BlogPost {
