@@ -1,9 +1,11 @@
 import React, { useState } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
-import { ShieldCheck, HelpCircle, Tag, Sparkles, CreditCard, ShoppingBag, Eye } from "lucide-react";
+import { ShieldCheck, HelpCircle, Tag, Sparkles, CreditCard, ShoppingBag, Eye, Banknote, QrCode, Wallet, Landmark, Clock } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { OrderItemDetail } from "../types";
 import { calculateItemPrice, calculateCartTotal } from "../utils/pricing";
+import { buildVietQrImageUrl, buildMomoQrImageUrl, getBankQrInfo, getMomoPhone, paymentGateways } from "../lib/payments";
+import { mirrorOrderToFirestore } from "../lib/firestoreOrders";
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
@@ -112,6 +114,11 @@ export default function CheckoutPage() {
 
     // Store into shared AppContext state
     setOrdersList(prev => [newOrder, ...prev]);
+
+    // Best-effort mirror to Firestore for signed-in users (no-op if unavailable)
+    if (currentUser) {
+      mirrorOrderToFirestore(currentUser.id, newOrder);
+    }
 
     // Deduct coins from balance if applied
     if (maxCoinsApplied > 0) {
@@ -231,29 +238,50 @@ export default function CheckoutPage() {
                 <span className="block text-[11px] font-sans font-bold text-brand-fb/60 uppercase">Phương thức thanh toán:</span>
                 <div className="grid grid-cols-2 gap-3">
                   {([
-                    { id: "cod",     label: "💵 COD (Thu tiền tận tay)",       desc: "Thanh toán khi nhận hàng" },
-                    { id: "vietqr",  label: "📱 VietQR",                        desc: "Quét mã QR thanh toán ngay" },
-                    { id: "momo",    label: "💜 Ví MoMo",                       desc: "Chuyển khoản qua MoMo" },
-                    { id: "banking", label: "🏦 Chuyển khoản ngân hàng",        desc: "Techcombank / VCB" }
-                  ] as const).map(opt => (
-                    <label
-                      key={opt.id}
-                      className={`p-3 rounded-xl border flex flex-col gap-1 cursor-pointer transition-all ${
-                        paymentMethod === opt.id ? "bg-brand-primary/5 border-brand-primary" : "bg-white border-brand-primary/10 hover:border-brand-primary/30"
-                      }`}
+                    { id: "cod",     label: "COD (Thu tiền tận tay)", desc: "Thanh toán khi nhận hàng", icon: Banknote },
+                    { id: "vietqr",  label: "VietQR",                 desc: "Quét mã QR thanh toán ngay", icon: QrCode },
+                    { id: "momo",    label: "Ví MoMo",                desc: "Chuyển khoản qua MoMo", icon: Wallet },
+                    { id: "banking", label: "Chuyển khoản ngân hàng", desc: "Vietcombank", icon: Landmark }
+                  ] as const).map(opt => {
+                    const Icon = opt.icon;
+                    return (
+                      <label
+                        key={opt.id}
+                        className={`p-3 rounded-xl border flex flex-col gap-1 cursor-pointer transition-all ${
+                          paymentMethod === opt.id ? "bg-brand-primary/5 border-brand-primary" : "bg-white border-brand-primary/10 hover:border-brand-primary/30"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name="pay"
+                            checked={paymentMethod === opt.id}
+                            onChange={() => setPaymentMethod(opt.id)}
+                            className="accent-brand-primary"
+                          />
+                          <Icon size={14} className="text-brand-primary" />
+                          <span className="text-xs font-sans font-bold text-brand-fb">{opt.label}</span>
+                        </div>
+                        <span className="text-[10px] text-brand-fb/50 font-sans pl-5">{opt.desc}</span>
+                      </label>
+                    );
+                  })}
+
+                  {/* Not-yet-live gateways: clearly disabled, no false claims of working */}
+                  {paymentGateways.map((gateway) => (
+                    <div
+                      key={gateway.id}
+                      className="p-3 rounded-xl border border-dashed border-brand-fb/15 bg-brand-bg/40 flex flex-col gap-1 cursor-not-allowed opacity-60"
+                      title="Sắp ra mắt"
                     >
                       <div className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          name="pay"
-                          checked={paymentMethod === opt.id}
-                          onChange={() => setPaymentMethod(opt.id)}
-                          className="accent-brand-primary"
-                        />
-                        <span className="text-xs font-sans font-bold text-brand-fb">{opt.label}</span>
+                        <CreditCard size={14} className="text-brand-fb/40" />
+                        <span className="text-xs font-sans font-bold text-brand-fb/60">{gateway.label}</span>
                       </div>
-                      <span className="text-[10px] text-brand-fb/50 font-sans pl-5">{opt.desc}</span>
-                    </label>
+                      <span className="text-[10px] text-brand-fb/40 font-sans pl-5 flex items-center gap-1">
+                        <Clock size={10} /> Sắp ra mắt
+                      </span>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -261,53 +289,62 @@ export default function CheckoutPage() {
               {/* Payment Instructions */}
               {paymentMethod === "vietqr" && (
                 <div className="p-4 rounded-2xl bg-brand-bg border border-dashed border-brand-primary/25 space-y-3 text-xs text-brand-fb/70 text-left">
-                  <p className="font-bold text-brand-primary pb-1">📱 Thanh toán qua VietQR:</p>
-                  <div className="flex gap-4 items-center">
-                    <div className="w-24 h-24 bg-white rounded-xl border-2 border-brand-primary/20 flex items-center justify-center shrink-0 shadow-inner">
-                      <div className="text-center">
-                        <div className="text-2xl">📱</div>
-                        <div className="text-[9px] font-bold text-brand-fb/40 mt-1">QR Demo</div>
+                  <p className="font-bold text-brand-primary pb-1">Thanh toán qua VietQR:</p>
+                  {getBankQrInfo() ? (
+                    <div className="flex gap-4 items-center">
+                      <img
+                        src={buildVietQrImageUrl(finalBillTotal, `LEN ${tempOrderId.slice(0, 12)}`) || ""}
+                        alt="Mã VietQR thanh toán"
+                        className="w-32 h-32 bg-white rounded-xl border-2 border-brand-primary/20 shrink-0 shadow-inner object-contain"
+                      />
+                      <div className="space-y-1.5">
+                        <p>• Số TK: <strong>{getBankQrInfo()?.accountNo}</strong></p>
+                        <p>• Chủ TK: <strong>{getBankQrInfo()?.accountName}</strong></p>
+                        <p>• Nội dung: <strong>LEN {tempOrderId.slice(0,12)}</strong></p>
+                        <p className="text-[10px] text-brand-primary italic">Mở app ngân hàng, bấm QR Pay và quét mã trên</p>
                       </div>
                     </div>
-                    <div className="space-y-1.5">
-                      <p>• Ngân hàng: <strong>Techcombank</strong></p>
-                      <p>• Số TK: <strong>1903 4402 1102</strong></p>
-                      <p>• Chủ TK: <strong>NGUYEN HAI NAM (LEN HANDMADE)</strong></p>
-                      <p>• Nội dung: <strong>LEN {tempOrderId.slice(0,12)}</strong></p>
-                      <p className="text-[10px] text-brand-primary italic">✨ Mở app ngân hàng, bấm QR Pay và quét mã trên</p>
-                    </div>
-                  </div>
+                  ) : (
+                    <p className="text-brand-fb/50 italic">VietQR chưa được cấu hình tài khoản ngân hàng.</p>
+                  )}
                 </div>
               )}
 
               {paymentMethod === "momo" && (
                 <div className="p-4 rounded-2xl bg-brand-bg border border-dashed border-pink-200 space-y-2 text-xs text-brand-fb/70 text-left">
-                  <p className="font-bold text-pink-600 pb-1">💜 Thanh toán qua Ví MoMo:</p>
-                  <div className="flex gap-4 items-center">
-                    <div className="w-24 h-24 bg-pink-50 rounded-xl border-2 border-pink-200 flex items-center justify-center shrink-0">
-                      <div className="text-center">
-                        <div className="text-2xl">💜</div>
-                        <div className="text-[9px] font-bold text-pink-400 mt-1">MoMo QR</div>
+                  <p className="font-bold text-pink-600 pb-1">Thanh toán qua Ví MoMo:</p>
+                  {getMomoPhone() ? (
+                    <div className="flex gap-4 items-center">
+                      <img
+                        src={buildMomoQrImageUrl() || ""}
+                        alt="Mã QR chuyển khoản MoMo"
+                        className="w-32 h-32 bg-pink-50 rounded-xl border-2 border-pink-200 shrink-0 object-contain"
+                      />
+                      <div className="space-y-1.5">
+                        <p>• Số ví MoMo: <strong className="text-pink-600">{getMomoPhone()}</strong></p>
+                        <p>• Số tiền: <strong className="text-pink-600">{finalBillTotal.toLocaleString("vi-VN")}đ</strong></p>
+                        <p>• Nội dung: <strong>LEN {tempOrderId.slice(0,12)}</strong></p>
+                        <p className="text-[10px] text-pink-500 italic">Mở app MoMo → Chuyển tiền → Nhập số điện thoại hoặc quét QR</p>
                       </div>
                     </div>
-                    <div className="space-y-1.5">
-                      <p>• Số ví MoMo: <strong className="text-pink-600">0912 443 1102</strong></p>
-                      <p>• Chủ tài khoản: <strong>NGUYEN HAI NAM</strong></p>
-                      <p>• Số tiền: <strong className="text-pink-600">{finalBillTotal.toLocaleString("vi-VN")}đ</strong></p>
-                      <p>• Nội dung: <strong>LEN {tempOrderId.slice(0,12)}</strong></p>
-                      <p className="text-[10px] text-pink-500 italic">💜 Mở app MoMo → Chuyển tiền → Nhập số điện thoại</p>
-                    </div>
-                  </div>
+                  ) : (
+                    <p className="text-pink-400 italic">MoMo chưa được cấu hình số điện thoại nhận tiền.</p>
+                  )}
                 </div>
               )}
 
               {paymentMethod === "banking" && (
                 <div className="p-4 rounded-2xl bg-brand-bg border border-dashed border-brand-primary/25 space-y-1.5 text-xs text-brand-fb/70 text-left">
-                  <p className="font-bold text-brand-primary pb-1">🏦 Chuyển khoản ngân hàng:</p>
-                  <p>• Ngân hàng Techcombank Chi nhánh TP.HCM</p>
-                  <p>• Số TK: <strong>1903 4402 1102</strong></p>
-                  <p>• Chủ TK: <strong>NGUYEN HAI NAM (LEN HANDMADE)</strong></p>
-                  <p>• Nội dung CK: <strong>LEN {tempOrderId}</strong></p>
+                  <p className="font-bold text-brand-primary pb-1">Chuyển khoản ngân hàng:</p>
+                  {getBankQrInfo() ? (
+                    <>
+                      <p>• Số TK: <strong>{getBankQrInfo()?.accountNo}</strong></p>
+                      <p>• Chủ TK: <strong>{getBankQrInfo()?.accountName}</strong></p>
+                      <p>• Nội dung CK: <strong>LEN {tempOrderId}</strong></p>
+                    </>
+                  ) : (
+                    <p className="text-brand-fb/50 italic">Chuyển khoản ngân hàng chưa được cấu hình tài khoản nhận tiền.</p>
+                  )}
                 </div>
               )}
 

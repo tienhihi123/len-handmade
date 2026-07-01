@@ -66,17 +66,22 @@ service cloud.firestore {
     }
     
     function isValidOrder(data) {
-      return data.keys().hasAll(['id', 'customerName', 'itemsCount', 'totalPrice', 'status', 'shippingAddress'])
-        && data.keys().size() <= 12
+      return data.keys().hasAll(['id', 'orderCode', 'name', 'itemsCount', 'totalPrice', 'status'])
+        && data.keys().size() <= 20
         && data.id is string && data.id.size() <= 100
-        && data.customerName is string && data.customerName.size() <= 200
+        && data.orderCode is string && data.orderCode.size() <= 100
+        && data.name is string && data.name.size() <= 500
         && data.itemsCount is int && data.itemsCount >= 0
         && (data.totalPrice is number || data.totalPrice is int) && data.totalPrice >= 0
-        && data.status in ["Chờ xác nhận", "Đang khâu dệt", "Đang vận chuyển", "Đã giao", "Đã hủy"]
-        && data.shippingAddress is string && data.shippingAddress.size() <= 500
+        && data.status in ["Chờ xác nhận", "Đã xác nhận", "Đang chuẩn bị hàng", "Đang giao", "Hoàn tất", "Đã hủy"]
+        && (data.get('shippingAddress', '') is string && data.get('shippingAddress', '').size() <= 500)
+        && (data.get('customerName', '') is string && data.get('customerName', '').size() <= 200)
         && (data.get('customerEmail', '') is string && data.get('customerEmail', '').size() <= 100)
+        && (data.get('customerPhone', '') is string && data.get('customerPhone', '').size() <= 30)
         && (data.get('discountApplied', 0) is number || data.get('discountApplied', 0) is int)
-        && (data.get('coinsUsed', 0) is int);
+        && (data.get('coinsUsed', 0) is int)
+        && (data.get('paymentMethod', '') is string && data.get('paymentMethod', '').size() <= 30)
+        && (data.get('note', '') is string && data.get('note', '').size() <= 500);
     }
     
     function isValidReturnRequest(data) {
