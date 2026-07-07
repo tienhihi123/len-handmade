@@ -7,8 +7,10 @@ import {
   User, LayoutDashboard, CreditCard, Award, LogOut
 } from "lucide-react";
 import { useApp } from "../context/AppContext";
+import { useAdminAuth } from "../context/AdminAuthContext";
 import { BRAND_NAME, BRAND_TAGLINE } from "../constants/brand";
 import { calculateCartTotal, countCartItems } from "../utils/pricing";
+import { STAFF_ROLE_DASHBOARD_PATH } from "../lib/permissions";
 
 // Animated middle logo featuring single main dynamic vector logo
 function LogoHookAnimated() {
@@ -35,11 +37,14 @@ export default function Header() {
   const {
     cart, setCart, wishlist, setWishlist, currentUser, logoutUser, hasPermission, productsList, setProductsList
   } = useApp();
+  const { isActiveStaff, staff } = useAdminAuth();
+  const accountLinkPath = isActiveStaff && staff ? STAFF_ROLE_DASHBOARD_PATH[staff.roleId] : "/account";
 
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchVal, setSearchVal] = useState("");
+  const [hoveredCartImage, setHoveredCartImage] = useState<string | null>(null);
 
   const cartTotal = calculateCartTotal(cart);
 
@@ -168,7 +173,7 @@ export default function Header() {
             {/* Dynamic Avatar / Login */}
             {currentUser ? (
               <Link
-                to={currentUser.role === "customer" ? "/account" : "/admin/dashboard"}
+                to={accountLinkPath}
                 className="w-10 h-10 rounded-full overflow-hidden border border-[#C8A982]/30 hover:border-[#B38A62] transition-all shrink-0"
                 title={`Tài khoản: ${currentUser.name}`}
               >
@@ -406,7 +411,7 @@ export default function Header() {
                   {currentUser ? (
                     <>
                       <Link
-                        to={currentUser.role === "customer" ? "/account" : "/admin-dashboard"}
+                        to={accountLinkPath}
                         onClick={() => setIsMobileMenuOpen(false)}
                         className="font-sans text-left text-xs font-bold py-2.5 px-4 rounded-xl text-[#412C20] bg-[#F8F3EC]/50 block w-full"
                       >
@@ -494,7 +499,8 @@ export default function Header() {
                     </button>
                   </div>
                 ) : (
-                  cart.map((item) => {
+                  <AnimatePresence mode="popLayout">
+                    {cart.map((item) => {
                     const priceMod = item.product.materials.find(m => m.name === item.selectedMaterial)?.priceModifier || 0;
                     const isMedium = item.selectedSize.includes("Vừa") || item.selectedSize.includes("nhỏ") === false && item.selectedSize.includes("Tiêu chuẩn") === false && item.selectedSize.includes("5 cành") === false;
                     const sizeMod = isMedium ? (item.product.id === "prod_1" ? 40000 : item.selectedSize.includes("9 cành") ? 90000 : item.selectedSize.includes("15 cành") ? 200000 : 0) : 0;
@@ -506,14 +512,55 @@ export default function Header() {
                       <motion.div
                         key={item.id}
                         layout
-                        className="flex gap-4 bg-[#FDFBF7]/40 p-4 rounded-2xl border border-[#CEAF75]/5 shadow-sm relative overflow-hidden text-left"
+                        initial={{ opacity: 1, scale: 1, rotate: 0, filter: "blur(0px)" }}
+                        exit={{
+                          opacity: 0,
+                          scale: 0.55,
+                          x: 70,
+                          y: 60,
+                          rotate: -12,
+                          filter: "blur(3px)",
+                          transition: {
+                            duration: 0.45,
+                            ease: [0.36, 0, 0.66, -0.56]
+                          }
+                        }}
+                        className={`flex gap-4 bg-[#FDFBF7]/40 p-4 rounded-2xl border border-[#CEAF75]/5 shadow-sm relative overflow-visible text-left group/cartitem ${
+                          hoveredCartImage === resolvedImg ? "z-50" : "z-0"
+                        }`}
                       >
-                        <img
-                          src={resolvedImg}
-                          alt={item.product.name}
-                          className="w-20 h-20 rounded-xl object-cover border border-[#CEAF75]/10 bg-white"
-                          referrerPolicy="no-referrer"
-                        />
+                        <div
+                          className="relative"
+                          onMouseEnter={() => setHoveredCartImage(resolvedImg)}
+                          onMouseLeave={() => setHoveredCartImage(null)}
+                        >
+                          <img
+                            src={resolvedImg}
+                            alt={item.product.name}
+                            className="w-20 h-20 rounded-xl object-cover border border-[#CEAF75]/10 bg-white cursor-pointer transition-all hover:border-gold/40"
+                            referrerPolicy="no-referrer"
+                          />
+
+                          {/* Hover Preview Box */}
+                          {hoveredCartImage === resolvedImg && (
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.9, x: -10 }}
+                              animate={{ opacity: 1, scale: 1, x: 0 }}
+                              exit={{ opacity: 0, scale: 0.9 }}
+                              transition={{ duration: 0.2 }}
+                              className="absolute left-full ml-4 top-0 z-50 pointer-events-none"
+                            >
+                              <div className="w-72 h-72 bg-white rounded-2xl shadow-soft-deep border-2 border-gold/20 overflow-hidden">
+                                <img
+                                  src={resolvedImg}
+                                  alt={item.product.name}
+                                  className="w-full h-full object-cover"
+                                  referrerPolicy="no-referrer"
+                                />
+                              </div>
+                            </motion.div>
+                          )}
+                        </div>
                         <div className="flex-1 min-w-0 flex flex-col justify-between">
                           <h4 className="font-sans font-bold text-sm text-[#412C20] truncate">
                             {item.product.name}
@@ -553,15 +600,26 @@ export default function Header() {
                           </div>
                         </div>
 
-                        <button
+                        <motion.button
                           onClick={() => handleRemoveFromCart(item.id)}
-                          className="absolute right-2 top-2 p-1 text-[#412C20]/30 hover:text-red-500 rounded-md cursor-pointer"
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9, rotate: -5 }}
+                          className="absolute right-2 top-2 p-1.5 text-[#412C20]/30 hover:text-red-500 hover:bg-red-50 rounded-md cursor-pointer transition-colors group/delete"
                         >
-                          <Trash2 size={16} />
-                        </button>
+                          <motion.div
+                            className="relative"
+                            whileHover={{
+                              rotate: [0, -10, 10, -10, 0],
+                              transition: { duration: 0.4 }
+                            }}
+                          >
+                            <Trash2 size={16} />
+                          </motion.div>
+                        </motion.button>
                       </motion.div>
                     );
-                  })
+                  })}
+                  </AnimatePresence>
                 )}
               </div>
 

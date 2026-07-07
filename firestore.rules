@@ -1,180 +1,298 @@
 rules_version = '2';
+
+// ============================================================
+// Staff/Admin Control Panel RBAC (9 staff roles + storefront customers).
+// Admin checks are validated directly against the staff/{uid} document —
+// no Cloud Functions / custom claims / Blaze plan required. Deployable
+// as-is via `firebase deploy --only firestore:rules`.
+//
+// Bootstrap: the very first admin doc can't be created by the client
+// (no admin exists yet to satisfy `isAdmin()`), so create it once by hand
+// in the Firebase Console: collection `staff`, document id = your
+// Firebase Auth uid, fields `{ roleId: "admin", status: "active" }`.
+// After that, isAdmin() can grant further staff writes from the app.
+// ============================================================
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Default-deny Catch-all Gate
+
     match /{document=**} {
       allow read, write: if false;
     }
-    
-    // Global Security Helper Primitives
-    function isSignedIn() {
-      return request.auth != null;
+
+    // ---------------- Helpers ----------------
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // Doc-only check (no custom claims): the staff/{uid} document is the
+    // sole source of truth for who's staff and what role they hold.
+    function staffDocFor(uid) {
+      return get(/databases/$(database)/documents/staff/$(uid)).data;
     }
-    
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+
+    function isActiveStaffWithRole(role) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/staff/$(request.auth.uid))
+        && staffDocFor(request.auth.uid).roleId == role
+        && staffDocFor(request.auth.uid).status == 'active';
     }
-    
-    function isAdmin() {
-      return isSignedIn() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+
+    function isAnyActiveStaff() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/staff/$(request.auth.uid))
+        && staffDocFor(request.auth.uid).status == 'active';
     }
-    
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+
+    function isAdmin() { return isActiveStaffWithRole('admin'); }
+    function isStoreManager() { return isActiveStaffWithRole('store_manager'); }
+    function isProductManager() { return isActiveStaffWithRole('product_inventory_manager'); }
+    function isOrderOps() { return isActiveStaffWithRole('order_operations'); }
+    function isSupport() { return isActiveStaffWithRole('customer_support'); }
+    function isMarketing() { return isActiveStaffWithRole('content_marketing_manager'); }
+    function isReviewMod() { return isActiveStaffWithRole('review_moderator'); }
+    function isFinance() { return isActiveStaffWithRole('finance_reporting'); }
+    function isAuditor() { return isActiveStaffWithRole('auditor'); }
+
+    function canManageCatalog() { return isAdmin() || isStoreManager() || isProductManager(); }
+    function canReadFinance() { return isAdmin() || isFinance() || isAuditor(); }
+    function canReadOrdersBroad() {
+      return isAdmin() || isStoreManager() || isOrderOps() || isSupport() || isFinance() || isAuditor();
     }
-    
-    function incoming() {
-      return request.resource.data;
+
+    // Legal order status transition graph — no arbitrary status jumps.
+    function allowedNextStatuses(status) {
+      return status == 'pending_payment' ? ['payment_confirmed', 'cancelled', 'cancel_requested'] :
+        status == 'payment_confirmed' ? ['processing', 'cancel_requested'] :
+        status == 'processing' ? ['ready_to_ship', 'cancel_requested'] :
+        status == 'ready_to_ship' ? ['shipping', 'cancel_requested'] :
+        status == 'shipping' ? ['delivered', 'return_requested'] :
+        status == 'delivered' ? ['completed', 'return_requested'] :
+        status == 'cancel_requested' ? ['cancelled', 'processing'] :
+        status == 'return_requested' ? ['return_approved', 'completed'] :
+        status == 'return_approved' ? ['returned'] :
+        status == 'returned' ? ['refund_pending'] :
+        status == 'refund_pending' ? ['refunded'] :
+        [];
     }
-    
-    function existing() {
-      return resource.data;
+
+    function isValidOrderTransition() {
+      return incoming().status == existing().status
+        || incoming().status in allowedNextStatuses(existing().status);
     }
-    
-    // Validation Helpers (Anti-Update-Gap)
+
+    // ---------------- users/{uid} (storefront customers) ----------------
     function isValidUser(data) {
       return data.keys().hasAll(['id', 'name', 'email', 'role', 'status'])
         && data.keys().size() <= 12
-        && data.id is string
-        && data.name is string && data.name.size() <= 100
-        && data.email is string && data.email.size() <= 100
-        && data.role in ["customer", "admin"]
-        && data.status in ["active", "locked"]
-        && (data.get('avatar', '') is string && data.get('avatar', '').size() <= 500)
-        && (data.get('totalLoginCount', 0) is int)
-        && (data.get('coins', 0) is int);
-    }
-    
-    function isValidCartItem(data) {
-      return data.keys().hasAll(['id', 'productId', 'quantity'])
-        && data.keys().size() <= 8
-        && data.id is string && data.id.size() <= 200
-        && data.productId is string && data.productId.size() <= 100
-        && data.quantity is int && data.quantity >= 0
-        && (data.get('selectedColor', '') is string && data.get('selectedColor', '').size() <= 100)
-        && (data.get('selectedSize', '') is string && data.get('selectedSize', '').size() <= 100)
-        && (data.get('selectedMaterial', '') is string && data.get('selectedMaterial', '').size() <= 100);
-    }
-    
-    function isValidFavorite(data) {
-      return data.keys().hasAll(['productId'])
-        && data.keys().size() <= 3
-        && data.productId is string && data.productId.size() <= 100;
-    }
-    
-    function isValidOrder(data) {
-      return data.keys().hasAll(['id', 'orderCode', 'name', 'itemsCount', 'totalPrice', 'status'])
-        && data.keys().size() <= 20
-        && data.id is string && data.id.size() <= 100
-        && data.orderCode is string && data.orderCode.size() <= 100
-        && data.name is string && data.name.size() <= 500
-        && data.itemsCount is int && data.itemsCount >= 0
-        && (data.totalPrice is number || data.totalPrice is int) && data.totalPrice >= 0
-        && data.status in ["Chờ xác nhận", "Đã xác nhận", "Đang chuẩn bị hàng", "Đang giao", "Hoàn tất", "Đã hủy"]
-        && (data.get('shippingAddress', '') is string && data.get('shippingAddress', '').size() <= 500)
-        && (data.get('customerName', '') is string && data.get('customerName', '').size() <= 200)
-        && (data.get('customerEmail', '') is string && data.get('customerEmail', '').size() <= 100)
-        && (data.get('customerPhone', '') is string && data.get('customerPhone', '').size() <= 30)
-        && (data.get('discountApplied', 0) is number || data.get('discountApplied', 0) is int)
-        && (data.get('coinsUsed', 0) is int)
-        && (data.get('paymentMethod', '') is string && data.get('paymentMethod', '').size() <= 30)
-        && (data.get('note', '') is string && data.get('note', '').size() <= 500);
-    }
-    
-    function isValidReturnRequest(data) {
-      return data.keys().hasAll(['id', 'orderId', 'productName', 'reason', 'status', 'createdAt'])
-        && data.keys().size() <= 8
-        && data.id is string && data.id.size() <= 100
-        && data.orderId is string && data.orderId.size() <= 100
-        && data.productName is string && data.productName.size() <= 200
-        && data.reason is string && data.reason.size() <= 1000
-        && data.status in ["Chờ xử lý", "Đã chấp nhận", "Đã từ chối"]
-        && (data.createdAt is string || data.createdAt is timestamp);
+        && data.role == 'customer'
+        && data.status in ['active', 'locked'];
     }
 
-    function isValidReview(data) {
-      return data.keys().hasAll(['productId', 'userId', 'authorName', 'rating', 'text', 'status'])
-        && data.keys().size() <= 8
-        && data.productId is string && data.productId.size() <= 100
-        && data.userId is string
-        && data.authorName is string && data.authorName.size() <= 100
-        && data.rating is int && data.rating >= 1 && data.rating <= 5
-        && data.text is string && data.text.size() <= 1000
-        && data.status == "pending";
-    }
-
-    function isValidFeedback(data) {
-      return data.keys().hasAll(['userId', 'userName', 'userEmail', 'message', 'status'])
-        && data.keys().size() <= 7
-        && data.userId is string
-        && data.userName is string && data.userName.size() <= 100
-        && data.userEmail is string && data.userEmail.size() <= 100
-        && data.message is string && data.message.size() <= 2000
-        && data.status == "new";
-    }
-
-    // 1. Users Profiles Rules
     match /users/{userId} {
-      allow read, get: if isOwner(userId) || isAdmin();
-      
-      // Enforce zero-trust self-assignment role blocker & schema check
-      allow create: if isOwner(userId) 
-        && isValidId(userId)
-        && incoming().role == "customer" 
-        && incoming().status == "active" 
-        && isValidUser(incoming());
-        
-      allow update: if (isOwner(userId) && incoming().role == existing().role && incoming().status == existing().status && isValidUser(incoming()))
-        || isAdmin();
-        
+      allow read: if isOwner(userId) || isAdmin() || isSupport();
+      allow create: if isOwner(userId) && incoming().role == 'customer' && incoming().status == 'active' && isValidUser(incoming());
+      allow update: if (isOwner(userId) && incoming().role == existing().role && incoming().status == existing().status && isValidUser(incoming())) || isAdmin();
       allow delete: if isAdmin();
-      
-      // 2. Sub-Collection: Cart
-      match /cart/{itemId} {
-        allow read, write: if isOwner(userId) && isValidId(itemId);
-        allow create, update: if isOwner(userId) && isValidCartItem(incoming());
-      }
-      
-      // 3. Sub-Collection: Wishlist/Favorites
-      match /wishlist/{productId} {
-        allow read, write: if isOwner(userId) && isValidId(productId);
-        allow create, update: if isOwner(userId) && isValidFavorite(incoming());
-      }
-      
-      // 4. Sub-Collection: Orders
+
+      match /cart/{itemId} { allow read, write: if isOwner(userId); }
+      match /wishlist/{productId} { allow read, write: if isOwner(userId); }
       match /orders/{orderId} {
-        allow read, get: if isOwner(userId) || isAdmin();
-        allow create: if isOwner(userId) && isValidOrder(incoming());
-        allow update: if isAdmin() || (isOwner(userId) && incoming().status == existing().status && isValidOrder(incoming()));
+        allow read: if isOwner(userId) || canReadOrdersBroad();
+        allow create: if isOwner(userId);
+        // Staff-side status updates: LoggedOrder.status uses Vietnamese
+        // free-text values that don't map onto the allowedNextStatuses()
+        // state machine (designed for the separate OrderStatusV2 enum),
+        // so the transition graph isn't enforced here. Intentionally
+        // permissive until the two status models are unified.
+        allow update: if isOwner(userId) ? incoming().status == existing().status : canReadOrdersBroad();
         allow delete: if isAdmin();
       }
     }
-    
-    // 5. Returns Collection
+
+    // ---------------- staff/{uid} ----------------
+    match /staff/{uid} {
+      allow read: if isOwner(uid);
+      // Only an existing admin can add/edit staff. The very first admin
+      // doc is bootstrapped by hand in the Firebase Console (see header).
+      allow write: if isAdmin();
+    }
+
+    // ---------------- roles/{roleId} — static reference data ----------------
+    match /roles/{roleId} {
+      allow read: if isAnyActiveStaff();
+      allow write: if false; // shipped with the app, not runtime-editable
+    }
+
+    // ---------------- auditLogs/{id} — append-only, server-written ----------------
+    match /auditLogs/{id} {
+      allow read: if isAdmin() || isAuditor();
+      allow write: if false; // every privileged Cloud Function appends via Admin SDK
+    }
+
+    // ---------------- categories/{id} ----------------
+    match /categories/{categoryId} {
+      allow read: if true; // public storefront
+      allow write: if canManageCatalog();
+    }
+
+    // ---------------- products/{id} ----------------
+    match /products/{productId} {
+      allow read: if true; // public storefront catalog (client filters by status)
+      allow create, update: if canManageCatalog();
+      // Never delete a product that has appeared in an order — Cloud Function
+      // deleteProduct enforces the order-history check server-side; direct
+      // client deletes are always denied.
+      allow delete: if false;
+
+      match /reviews/{reviewId} {
+        allow read: if existing().status == 'approved' || isAdmin() || isReviewMod() || (isSignedIn() && existing().userId == request.auth.uid);
+        allow create: if isSignedIn() && incoming().userId == request.auth.uid && incoming().status == 'pending';
+        allow update: if isAdmin() || isReviewMod();
+        allow delete: if isAdmin() || isReviewMod();
+      }
+    }
+
+    // ---------------- productVariants/{id} ----------------
+    match /productVariants/{variantId} {
+      allow read: if true; // public storefront (client filters by product status)
+      allow write: if canManageCatalog();
+    }
+
+    // ---------------- inventory ----------------
+    match /inventory/{sku} {
+      allow read: if isAdmin() || isProductManager() || isStoreManager() || isAuditor();
+      // Small manual tweaks may go direct; anything larger than 20 units
+      // must go through the adjustInventory Cloud Function instead.
+      allow write: if (isAdmin() || isProductManager())
+        && (!('stockQuantity' in existing()) || !('stockQuantity' in incoming())
+            || (incoming().stockQuantity - existing().stockQuantity <= 20
+                && existing().stockQuantity - incoming().stockQuantity <= 20));
+    }
+
+    match /inventoryTransactions/{id} {
+      allow read: if isAdmin() || isProductManager() || isStoreManager() || isAuditor();
+      allow create: if isAdmin() || isProductManager();
+      allow update, delete: if false; // append-only ledger
+    }
+
+    // ---------------- orders (top-level mirror for staff-side queries) ----------------
+    match /orders/{orderId} {
+      allow read: if canReadOrdersBroad();
+      allow create: if false; // orders are created via users/{uid}/orders, mirrored server-side
+      allow update: if canReadOrdersBroad() && isValidOrderTransition() && (
+        isAdmin() ||
+        (isOrderOps() && incoming().status in ['payment_confirmed', 'processing', 'ready_to_ship', 'shipping', 'cancel_requested']) ||
+        (isStoreManager() && incoming().status in ['processing', 'ready_to_ship'])
+      );
+      allow delete: if false;
+    }
+
+    // ---------------- payments — Cloud Functions only ----------------
+    match /payments/{id} {
+      allow read: if canReadFinance();
+      allow write: if false; // updatePaymentStatus Cloud Function only
+    }
+
+    // ---------------- returns ----------------
+    function isValidReturnRequest(data) {
+      return data.keys().hasAll(['id', 'orderId', 'productName', 'reason', 'status', 'createdAt'])
+        && data.status == 'Chờ xử lý';
+    }
     match /returns/{returnId} {
-      allow read, get: if isAdmin();
-      // Allow customers to list and build return requests
-      allow create: if isSignedIn() && isValidId(returnId) && isValidReturnRequest(incoming());
-      allow update: if isAdmin();
+      allow read: if isAdmin() || isSupport() || isStoreManager() || isAuditor() || (isSignedIn() && existing().userId == request.auth.uid);
+      allow create: if isSignedIn() && isValidReturnRequest(incoming());
+      allow update: if isAdmin(); // approve/reject reserved for Admin per role spec
       allow delete: if isAdmin();
     }
 
-    // 6. Product Reviews (subcollection, moderated)
-    match /products/{productId}/reviews/{reviewId} {
-      allow read: if existing().status == "approved" || isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
-      allow create: if isSignedIn() && incoming().userId == request.auth.uid && isValidReview(incoming());
+    // ---------------- refundRequests — approval gated by amount ----------------
+    match /refundRequests/{id} {
+      allow read: if isAdmin() || isFinance() || isAuditor() || (isSupport() && existing().requestedBy == request.auth.uid);
+      allow create: if isSupport() || isAdmin();
+      // >=500,000đ only Admin/Finance may move a request to approved/completed —
+      // mirrored here from processRefund's server-side idempotency + role check.
+      allow update: if (isAdmin() || isFinance())
+        || (isSupport() && incoming().amount < 500000 && incoming().status in ['reviewing', 'rejected']);
+      allow delete: if false;
+    }
+
+    // ---------------- customers (admin-facing profile mirror) ----------------
+    match /customers/{uid} {
+      allow read: if isOwner(uid) || isAdmin() || isStoreManager() || isSupport() || isFinance() || isAuditor();
+      allow update: if isAdmin() || isStoreManager();
+      allow create: if isOwner(uid);
+      allow delete: if isAdmin();
+    }
+
+    // ---------------- points ----------------
+    match /pointsTransactions/{id} {
+      allow read: if isAdmin() || isFinance() || isSupport() || isAuditor() || (isSignedIn() && existing().userId == request.auth.uid);
+      allow write: if false; // adjustPoints Cloud Function only
+    }
+
+    // ---------------- coupons ----------------
+    match /coupons/{code} {
+      allow read: if true; // needed for client-side checkout code validation
+      allow write: if isAdmin() || isStoreManager() || isMarketing();
+    }
+
+    // ---------------- feedback / support tickets ----------------
+    function isValidFeedback(data) {
+      return data.keys().hasAll(['userId', 'userName', 'userEmail', 'message', 'status'])
+        && data.status == 'new';
+    }
+    match /feedback/{feedbackId} {
+      allow read: if isAdmin() || isSupport() || isReviewMod() || (isSignedIn() && existing().userId == request.auth.uid);
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid && isValidFeedback(incoming());
+      allow update: if isAdmin() || isSupport();
+      allow delete: if isAdmin();
+    }
+
+    match /supportTickets/{id} {
+      allow read: if isAdmin() || isSupport() || isAuditor()
+        || (isSignedIn() && existing().customerUid == request.auth.uid);
+      allow create: if isAdmin() || isSupport()
+        || (isSignedIn() && incoming().customerUid == request.auth.uid);
+      // Customers may update their own ticket doc too — sendTicketMessage
+      // patches lastMessage/updatedAt/status from either side of the chat.
+      allow update: if isAdmin() || isSupport()
+        || (isSignedIn() && existing().customerUid == request.auth.uid);
+      allow delete: if isAdmin() || isSupport();
+
+      // Two-way ticket chat — append-only, readable/writable by the
+      // assigned support staff or the ticket's own customer.
+      match /messages/{messageId} {
+        allow read: if isAdmin() || isSupport() || isAuditor()
+          || (isSignedIn() && get(/databases/$(database)/documents/supportTickets/$(id)).data.customerUid == request.auth.uid);
+        allow create: if isAdmin() || isSupport()
+          || (isSignedIn() && get(/databases/$(database)/documents/supportTickets/$(id)).data.customerUid == request.auth.uid);
+        allow update, delete: if false;
+      }
+    }
+
+    // ---------------- blog / banners / notifications ----------------
+    match /blogPosts/{id} {
+      allow read: if existing().status == 'published' || isAdmin() || isMarketing();
+      allow write: if isAdmin() || isMarketing();
+    }
+
+    match /banners/{id} {
+      allow read: if true;
+      allow write: if isAdmin() || isMarketing();
+    }
+
+    match /notifications/{id} {
+      allow read: if isAnyActiveStaff() || (isSignedIn() && existing().userId == request.auth.uid);
+      allow create: if isAnyActiveStaff();
       allow update, delete: if isAdmin();
     }
 
-    // 7. General Customer Feedback (tied to account)
-    match /feedback/{feedbackId} {
-      allow read: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
-      allow create: if isSignedIn() && incoming().userId == request.auth.uid && isValidFeedback(incoming());
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+    // ---------------- settings ----------------
+    match /settings/{docId} {
+      allow read: if isAnyActiveStaff();
+      allow write: if isAdmin();
     }
   }
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "motion/react";
 import {
@@ -43,7 +43,7 @@ function FadeUp({
   delay = 0,
   className = "",
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   delay?: number;
   className?: string;
 }) {
@@ -60,29 +60,6 @@ function FadeUp({
     >
       {children}
     </div>
-  );
-}
-
-// ──────────────── Floating decoration ────────────────
-function FloatingYarn({
-  src,
-  className,
-  delay = 0,
-  duration = 6,
-}: {
-  src: string;
-  className?: string;
-  delay?: number;
-  duration?: number;
-}) {
-  return (
-    <motion.img
-      src={src}
-      alt=""
-      className={`absolute pointer-events-none select-none object-contain drop-shadow-xl opacity-80 rounded-full ${className}`}
-      animate={{ y: [0, -18, 0], rotate: [0, 6, -6, 0] }}
-      transition={{ duration, repeat: Infinity, ease: "easeInOut", delay }}
-    />
   );
 }
 
@@ -103,7 +80,6 @@ const CATEGORY_ITEMS = [
   { title: "Hoa Len", img: YARN_PINK, category: "Hoa len" },
   { title: "Thú Bông", img: YARN_CREAM, category: "Thú bông / Amigurumi" },
   { title: "Phụ Kiện", img: STORY_IMG, category: "Phụ kiện len" },
-  { title: "Bộ Sưu Tập Mới", img: TEXTURE_BG, category: "" },
 ];
 
 const BENEFITS = [
@@ -147,19 +123,13 @@ export default function HomePage() {
           style={{ backgroundImage: `url(${TEXTURE_BG})`, backgroundSize: "cover", backgroundPosition: "center" }}
         />
 
-        {/* Floating yarn balls */}
-        <FloatingYarn src={YARN_CREAM} className="w-28 h-28 md:w-36 md:h-36 top-[10%] left-[3%] hidden md:block" delay={0} duration={6} />
-        <FloatingYarn src={YARN_PINK} className="w-24 h-24 md:w-32 md:h-32 top-[12%] right-[4%] hidden md:block" delay={1.5} duration={7} />
-        <FloatingYarn src={YARN_CREAM} className="w-20 h-20 md:w-28 md:h-28 bottom-[18%] left-[5%] hidden md:block" delay={3} duration={6.5} />
-        <FloatingYarn src={YARN_PINK} className="w-24 h-24 md:w-32 md:h-32 bottom-[15%] right-[4%] hidden md:block" delay={0.8} duration={8} />
-
         {/* Hero grid */}
         <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-16 w-full relative z-10 grid grid-cols-1 md:grid-cols-[55%_45%] gap-8 lg:gap-14 items-center py-12 md:py-0">
           {/* Left: text */}
           <div className="text-center md:text-left">
             <motion.p
               initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}
-              className="font-label-italic text-base md:text-lg text-gold mb-3 md:mb-5 tracking-wide"
+              className="font-label-italic text-base md:text-lg text-gold mb-3 md:mb-5 tracking-wide drop-shadow-[0_2px_8px_rgba(250,246,240,0.9)]"
             >
               Artisan Crochet Studio
             </motion.p>
@@ -232,12 +202,14 @@ export default function HomePage() {
             {BENEFITS.map((b, i) => {
               const Icon = b.icon;
               return (
-                <FadeUp key={i} delay={i * 0.08} className="flex items-center gap-2.5">
-                  <Icon size={22} className="text-gold shrink-0" />
-                  <span className="text-sm md:text-base text-cocoa" style={{ fontFamily: "'EB Garamond', serif" }}>
-                    {b.label}
-                  </span>
-                </FadeUp>
+                <div key={i} className="contents">
+                  <FadeUp delay={i * 0.08} className="flex items-center gap-2.5">
+                    <Icon size={22} className="text-gold shrink-0" />
+                    <span className="text-sm md:text-base text-cocoa" style={{ fontFamily: "'EB Garamond', serif" }}>
+                      {b.label}
+                    </span>
+                  </FadeUp>
+                </div>
               );
             })}
           </div>
@@ -256,7 +228,7 @@ export default function HomePage() {
           <div className="w-14 h-px bg-gold mx-auto" />
         </FadeUp>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
           {CATEGORY_ITEMS.map((cat, idx) => (
             <motion.a
               key={idx}
@@ -408,6 +380,7 @@ export default function HomePage() {
           </button>
         </FadeUp>
       </section>
+
     </div>
   );
 }

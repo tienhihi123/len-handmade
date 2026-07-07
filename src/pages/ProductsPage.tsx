@@ -12,7 +12,7 @@ import { BRAND_NAME } from "../constants/brand";
 export default function ProductsPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { productsList, wishlist, setWishlist, cart, setCart, addActivity, viewStats } = useApp();
+  const { productsList, wishlist, setWishlist, cart, setCart, addActivity, viewStats, categoriesList } = useApp();
   const dragScroll = useDragScroll();
 
   // Route state checker for clicked category from home page
@@ -142,14 +142,20 @@ export default function ProductsPage() {
 
   const filtered = getFilteredProducts();
 
+  const DEFAULT_TITLE = "Danh Mục Sản Phẩm Mộc Mạc";
+  const DEFAULT_DESCRIPTION = "Lướt xem bộ sưu tập len hand-hooked tinh chế sắc nét, túi nơ gỗ Boho, hoa trang nhã tốt nghiệp.";
+  const selectedCategoryData = categoriesList.find((c) => c.name === selectedCategory);
+  const pageTitle = selectedCategory === "Tất cả" ? DEFAULT_TITLE : selectedCategoryData?.name || selectedCategory;
+  const pageDescription = selectedCategory === "Tất cả" ? DEFAULT_DESCRIPTION : selectedCategoryData?.description || DEFAULT_DESCRIPTION;
+
   return (
     <div className="bg-brand-bg min-h-screen pt-32 pb-24 px-4 text-left">
       <div className="max-w-7xl mx-auto">
         {/* Banner header titles */}
         <div className="mb-10 pb-6 border-b border-brand-primary/10">
           <span className="text-xs font-semibold uppercase tracking-widest text-brand-primary block mb-2">✦ Cửa hàng dệt len ✦</span>
-          <h1 className="font-serif font-black text-2xl sm:text-3xl text-brand-fb">Danh Mục Sản Phẩm Mộc Mạc</h1>
-          <p className="font-sans text-xs sm:text-sm text-brand-fb/60 mt-1">Lướt xem bộ sưu tập len hand-hooked tinh chế sắc nét, túi nơ gỗ Boho, hoa trang nhã tốt nghiệp.</p>
+          <h1 className="font-serif font-black text-2xl sm:text-3xl text-brand-fb">{pageTitle}</h1>
+          <p className="font-sans text-xs sm:text-sm text-brand-fb/60 mt-1">{pageDescription}</p>
         </div>
 
         {/* Filters and main grid layout split */}
@@ -178,21 +184,27 @@ export default function ProductsPage() {
             </div>
 
             {/* Categories filters vertical links */}
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-sans font-bold text-brand-fb/70 uppercase">Trưng bày nhóm:</label>
-              <ul className="space-y-1.5">
+            <div className="space-y-2.5">
+              <label className="font-label-italic text-sm text-gold flex items-center gap-2">
+                <span className="w-1 h-1 rounded-full bg-gold/60" />
+                Trưng bày nhóm
+              </label>
+              <ul className="space-y-1">
                 {["Tất cả", "Áo len thủ công", "Túi len handmade", "Phụ kiện len", "Thú bông / Amigurumi", "Móc khóa len", "Hoa len", "Khăn len"].map((cat) => (
                   <li key={cat}>
                     <button
                       onClick={() => setSelectedCategory(cat)}
-                      className={`w-full text-left font-sans text-xs py-2 px-3 rounded-lg flex items-center justify-between transition-colors cursor-pointer ${
-                        selectedCategory === cat 
-                          ? "bg-brand-primary/10 text-brand-primary font-semibold" 
-                          : "text-brand-fb/75 hover:bg-brand-primary/5"
+                      className={`group w-full text-left font-sans text-sm py-3 px-4 rounded-xl flex items-center justify-between transition-all duration-300 cursor-pointer ${
+                        selectedCategory === cat
+                          ? "bg-gradient-to-r from-gold/15 to-gold/5 text-gold font-bold border-l-3 border-gold shadow-sm"
+                          : "text-cocoa/70 hover:bg-ivory/50 hover:text-cocoa hover:translate-x-1"
                       }`}
                     >
-                      <span>{cat}</span>
-                      {selectedCategory === cat && <span className="w-1.5 h-1.5 rounded-full bg-brand-primary" />}
+                      <span className="flex items-center gap-2">
+                        {selectedCategory === cat && <span className="text-base">✦</span>}
+                        {cat}
+                      </span>
+                      {selectedCategory === cat && <span className="w-2 h-2 rounded-full bg-gold animate-pulse" />}
                     </button>
                   </li>
                 ))}
@@ -221,20 +233,28 @@ export default function ProductsPage() {
             </div>
 
             {/* Star ratings minimum */}
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-sans font-bold text-brand-fb/70 uppercase">Chất lượng lọc sao:</label>
-              <div className="flex items-center gap-1">
+            <div className="space-y-2.5">
+              <label className="font-label-italic text-sm text-gold flex items-center gap-2">
+                <span className="w-1 h-1 rounded-full bg-gold/60" />
+                Chất lượng sao
+              </label>
+              <div className="flex items-center gap-2 flex-wrap">
                 {[0, 3, 4, 5].map((starVal) => (
                   <button
                     key={starVal}
                     onClick={() => setMinRating(starVal)}
-                    className={`px-3 py-1 text-xs rounded-md border text-center transition-colors font-mono cursor-pointer ${
+                    className={`group relative px-4 py-2.5 text-sm rounded-xl border-2 text-center transition-all duration-300 cursor-pointer font-sans font-semibold overflow-hidden ${
                       minRating === starVal
-                        ? "bg-brand-primary border-brand-primary text-white"
-                        : "bg-white border-brand-primary/15 text-brand-fb hover:bg-brand-primary/5"
+                        ? "bg-gold border-gold text-white shadow-soft scale-105"
+                        : "bg-ivory/40 border-divider-beige text-cocoa/70 hover:border-gold/40 hover:bg-ivory hover:scale-102"
                     }`}
                   >
-                    {starVal === 0 ? "Tất cả" : `${starVal}★+`}
+                    {minRating === starVal && (
+                      <span className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent" />
+                    )}
+                    <span className="relative">
+                      {starVal === 0 ? "Tất cả" : `${starVal}★+`}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -249,9 +269,10 @@ export default function ProductsPage() {
                 setMinRating(0);
                 setSortBy("recommended");
               }}
-              className="w-full bg-brand-muted/50 hover:bg-brand-muted border border-brand-primary/10 hover:border-brand-primary/35 text-brand-fb font-semibold text-[11px] py-2.5 rounded-xl transition-all cursor-pointer"
+              className="group w-full bg-gradient-to-r from-ivory/80 to-cream/60 hover:from-gold/10 hover:to-gold/5 border-2 border-divider-beige hover:border-gold/40 text-cocoa hover:text-gold font-bold text-sm py-3.5 rounded-xl transition-all duration-300 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-center gap-2"
             >
-              Đặt Lại Tất Cả Bộ Lọc
+              <span className="text-base group-hover:rotate-180 transition-transform duration-500">✦</span>
+              <span className="font-label-italic">Đặt Lại Bộ Lọc</span>
             </button>
           </div>
 
@@ -391,23 +412,23 @@ export default function ProductsPage() {
               </div>
 
               {/* Real-time sorted button for "most viewed" of course! */}
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-sans font-semibold text-brand-fb/50 whitespace-nowrap">Sắp xếp:</span>
+              <div className="flex items-center gap-3">
+                <span className="font-label-italic text-sm text-gold whitespace-nowrap">Sắp xếp theo</span>
                 <div className="relative">
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
-                    className="text-xs font-sans bg-white border border-brand-primary/15 hover:border-brand-primary/40 px-4 py-2 rounded-full text-brand-fb focus:border-brand-primary focus:ring-1 focus:ring-brand-primary outline-none transition-all cursor-pointer shadow-xs pr-8 appearance-none"
+                    className="font-sans text-xs bg-ivory/60 backdrop-blur-sm border-2 border-gold/20 hover:border-gold/40 px-5 py-2.5 rounded-xl text-cocoa focus:border-gold focus:ring-2 focus:ring-gold/20 outline-none transition-all cursor-pointer shadow-soft pr-10 appearance-none font-medium"
                   >
-                    <option value="recommended">Khuyên chọn (Mặc định)</option>
-                    <option value="most-viewed">🔥 Xem nhiều nhất (Lượt xem)</option>
-                    <option value="price-asc">Giá từ thấp tới cao 💸</option>
-                    <option value="price-desc">Giá từ cao xuống thấp 💰</option>
-                    <option value="rating">Được đánh giá cao sao</option>
+                    <option value="recommended">✦ Khuyên chọn (Mặc định)</option>
+                    <option value="most-viewed">🔥 Xem nhiều nhất</option>
+                    <option value="price-asc">💸 Giá thấp → cao</option>
+                    <option value="price-desc">💰 Giá cao → thấp</option>
+                    <option value="rating">⭐ Đánh giá cao</option>
                   </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-brand-primary">
-                    <svg className="h-3 w-3 fill-none stroke-current" viewBox="0 0 10 10" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M1 3.5l4 4 4-4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3.5 text-gold">
+                    <svg className="h-4 w-4 fill-none stroke-current stroke-2" viewBox="0 0 10 10" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M1 3.5l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </div>
                 </div>

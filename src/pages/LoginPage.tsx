@@ -1,21 +1,22 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { Mail, Lock, LogIn, AlertTriangle, Eye, ShieldAlert, Settings, HelpCircle, X, CheckCircle, ArrowRight } from "lucide-react";
+import { Mail, Lock, LogIn, AlertTriangle, ShieldAlert, Settings, HelpCircle, X, CheckCircle } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import Logo from "../components/Logo";
-import { 
-  isFirebaseConfigured, 
-  auth, 
-  GoogleAuthProvider, 
-  FacebookAuthProvider, 
-  OAuthProvider, 
-  signInWithPopup, 
+import {
+  isFirebaseConfigured,
+  auth,
+  GoogleAuthProvider,
+  FacebookAuthProvider,
+  OAuthProvider,
+  signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword
 } from "../lib/firebase";
 import { findExistingUser, setCurrentUser as persistCurrentUser } from "../utils/userStorage";
-import { loginDemoUser, roleRedirects } from "../data/authAndTracking.mock";
+import { loginDemoUser } from "../data/authAndTracking.mock";
+import { resolvePostLoginRedirect } from "../lib/permissions";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -62,8 +63,7 @@ export default function LoginPage() {
           const userCredential = await signInWithEmailAndPassword(auth, emailInput.trim(), passwordInput);
           if (userCredential.user) {
             const lowerEmail = emailInput.trim().toLowerCase();
-            const redirectPath = roleRedirects[lowerEmail as keyof typeof roleRedirects] || "/";
-            navigate(redirectPath);
+            navigate(resolvePostLoginRedirect(lowerEmail));
           }
         }
       } catch (err: any) {
@@ -103,7 +103,7 @@ export default function LoginPage() {
           const existing = findExistingUser(trimmedEmail, "email");
           if (existing) {
             loginUser(trimmedEmail, "email");
-            navigate((existing.role as string) === "admin" ? "/admin/dashboard" : "/");
+            navigate(resolvePostLoginRedirect(trimmedEmail));
             return;
           }
 
@@ -111,7 +111,7 @@ export default function LoginPage() {
           const demo = loginDemoUser(trimmedEmail, passwordInput);
           persistCurrentUser(demo.user as any);
           setCurrentUser(demo.user as any);
-          navigate(demo.redirectPath || (demo.role === "admin" ? "/admin/dashboard" : "/"));
+          navigate(resolvePostLoginRedirect(trimmedEmail));
         }
       } catch (e: any) {
         if (e?.message === "NOT_FOUND") {
@@ -166,8 +166,7 @@ export default function LoginPage() {
 
         setSuccessMessage(`Đăng nhập thành công qua ${provider === "facebook" ? "Facebook" : provider.toUpperCase()}!`);
         setTimeout(() => {
-          const redirectPath = roleRedirects[lowerEmail as keyof typeof roleRedirects] || "/";
-          navigate(redirectPath);
+          navigate(resolvePostLoginRedirect(lowerEmail));
         }, 1000);
       }
     } catch (err: any) {
@@ -205,7 +204,6 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
-
 
   return (
     <div className="bg-[#FAF6F0] min-h-screen pt-32 pb-24 px-4 text-left flex items-center justify-center relative">
@@ -414,6 +412,7 @@ export default function LoginPage() {
             )}
             {isRegisterMode ? "Đăng Ký Tài Khoản" : "Đăng Nhập Khách Hàng"}
           </button>
+
         </form>
 
         <div className="flex items-center justify-center gap-3">
@@ -451,30 +450,6 @@ export default function LoginPage() {
               />
             </svg>
             Đăng nhập với Google
-          </button>
-
-          {/* Facebook */}
-          <button
-            onClick={() => handleSocialLogin("facebook")}
-            type="button"
-            className="w-full bg-[#3B5998] hover:bg-[#344E86] text-white text-sm lg:text-base font-medium min-h-11 px-4 py-2.5 rounded-xl cursor-pointer transition-colors duration-200 flex items-center justify-center gap-2"
-          >
-            <svg fill="currentColor" viewBox="0 0 24 24" className="w-4 h-4 lg:w-5 lg:h-5">
-              <path d="M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12c0 4.84 3.44 8.87 8 9.8V15H8v-3h2V9.5C10 7.57 11.57 6 13.5 6H16v3h-2c-.55 0-1 .45-1 1v2h3v3h-3v6.8c4.56-.93 8-4.96 8-9.8z" />
-            </svg>
-            Đăng nhập với Facebook
-          </button>
-
-          {/* Apple */}
-          <button
-            onClick={() => handleSocialLogin("apple")}
-            type="button"
-            className="w-full bg-black hover:bg-neutral-900 text-white text-sm lg:text-base font-medium min-h-11 px-4 py-2.5 rounded-xl cursor-pointer transition-colors duration-200 flex items-center justify-center gap-2"
-          >
-            <svg fill="currentColor" viewBox="0 0 24 24" className="w-4 h-4 lg:w-5 lg:h-5">
-              <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 4.17c.66-.81 1.11-1.95.99-3.09-.96.04-2.13.64-2.82 1.45-.59.69-1.11 1.85-.97 2.97 1.08.08 2.14-.51 2.8-1.33z" />
-            </svg>
-            Đăng nhập với Apple
           </button>
         </div>
 

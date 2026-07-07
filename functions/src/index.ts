@@ -25,3 +25,16 @@ export const createStripeIntent = onRequest((req, res) => {
   // return its redirect URL to the client.
   res.status(501).json({ error: "Stripe integration not implemented yet." });
 });
+
+// Staff/Admin Control Panel privileged operations — see admin.ts header
+// comment. Not deployed yet; re-exported here so `npm run deploy` will
+// pick them up once the project is confirmed on Blaze.
+export {
+  assignRole,
+  updateStaffStatus,
+  processRefund,
+  adjustPoints,
+  adjustInventory,
+  updatePaymentStatus,
+  exportSensitiveData
+} from "./admin";

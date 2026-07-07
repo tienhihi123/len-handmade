@@ -1,12 +1,13 @@
 import { initializeApp } from "firebase/app";
-import { 
-  getAuth, 
-  GoogleAuthProvider, 
-  FacebookAuthProvider, 
-  OAuthProvider, 
+import {
+  getAuth,
+  GoogleAuthProvider,
+  FacebookAuthProvider,
+  OAuthProvider,
   signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  signInAnonymously,
   signOut,
   onAuthStateChanged
 } from "firebase/auth";
@@ -42,16 +43,17 @@ if (isFirebaseConfigured) {
   );
 }
 
-export { 
-  app, 
-  auth, 
-  db, 
-  GoogleAuthProvider, 
-  FacebookAuthProvider, 
-  OAuthProvider, 
+export {
+  app,
+  auth,
+  db,
+  GoogleAuthProvider,
+  FacebookAuthProvider,
+  OAuthProvider,
   signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  signInAnonymously,
   signOut,
   onAuthStateChanged
 };

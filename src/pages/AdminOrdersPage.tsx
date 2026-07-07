@@ -1,24 +1,61 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
 import { Filter, RefreshCw } from "lucide-react";
 import { useApp } from "../context/AppContext";
+import { subscribeToAllOrdersForAdmin, updateOrderStatusInFirestore } from "../lib/firestoreOrdersAdmin";
+import type { LoggedOrder } from "../types";
 
 const statusOptions = ["all", "Chờ xác nhận", "Đã xác nhận", "Đang chuẩn bị hàng", "Đang giao", "Hoàn tất", "Đã hủy"];
+const AUTO_REFRESH_INTERVAL_MS = 20000;
 
 export default function AdminOrdersPage() {
-  const { allOrders, updateOrderStatus } = useApp();
+  const { allOrders, updateOrderStatus, refreshOrders } = useApp();
+  const [firestoreOrders, setFirestoreOrders] = useState<LoggedOrder[]>([]);
   const [filterStatus, setFilterStatus] = useState("all");
   const [search, setSearch] = useState("");
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState(() => new Date());
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Every admin/device sees the same real orders (with real timestamps) once
+  // Firestore has any — falls back to this browser's local orders otherwise.
+  useEffect(() => subscribeToAllOrdersForAdmin(setFirestoreOrders), []);
+  const sourceOrders = firestoreOrders.length > 0 ? firestoreOrders : allOrders;
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    refreshOrders();
+    setSelectedOrderId(null);
+    setLastRefreshedAt(new Date());
+    setTimeout(() => setIsRefreshing(false), 500);
+  };
+
+  // Auto-refresh so status changes made from another tab/device (e.g. a
+  // customer completing checkout) show up here without a manual reload.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshOrders();
+      setLastRefreshedAt(new Date());
+    }, AUTO_REFRESH_INTERVAL_MS);
+    const handleStorage = () => {
+      refreshOrders();
+      setLastRefreshedAt(new Date());
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, [refreshOrders]);
 
   const filtered = useMemo(() => {
-    return allOrders.filter((order) => {
+    return sourceOrders.filter((order) => {
       const q = search.toLowerCase();
       const matchText = order.orderCode.toLowerCase().includes(q) || (order.customerName || "").toLowerCase().includes(q) || (order.customerPhone || "").toLowerCase().includes(q);
       const matchStatus = filterStatus === "all" || order.status === filterStatus;
       return matchText && matchStatus;
     });
-  }, [allOrders, filterStatus, search]);
+  }, [sourceOrders, filterStatus, search]);
 
   const selectedOrder = filtered.find((order) => order.id === selectedOrderId) || null;
 
@@ -30,10 +67,17 @@ export default function AdminOrdersPage() {
           <h1 className="font-serif text-3xl font-black text-brand-fb">Xem & cập nhật tình trạng đơn hàng</h1>
           <p className="text-sm text-brand-fb/70 max-w-2xl">Tìm kiếm theo mã, tên khách hoặc số điện thoại và chuyển trạng thái đơn hàng với một cú nhấp.</p>
         </div>
-        <div className="flex flex-wrap gap-3 justify-end">
-          <button onClick={() => setSelectedOrderId(null)} className="inline-flex items-center gap-2 rounded-full bg-brand-primary px-5 py-3 text-xs font-bold uppercase tracking-[0.18em] text-white shadow-sm hover:bg-[#8c4a3f] transition">
-            <RefreshCw size={16} /> Làm mới trạng thái
+        <div className="flex flex-col items-end gap-1.5">
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="inline-flex items-center gap-2 rounded-full bg-brand-primary px-5 py-3 text-xs font-bold uppercase tracking-[0.18em] text-white shadow-sm hover:bg-[#8c4a3f] transition disabled:opacity-70 cursor-pointer"
+          >
+            <RefreshCw size={16} className={isRefreshing ? "animate-spin" : ""} /> Làm mới trạng thái
           </button>
+          <span className="text-[10px] text-brand-fb/50 font-mono">
+            Cập nhật lúc {lastRefreshedAt.toLocaleTimeString("vi-VN")} · tự động mỗi 20s
+          </span>
         </div>
       </div>
 
@@ -158,7 +202,12 @@ export default function AdminOrdersPage() {
                     {nextStatuses.map((status) => (
                       <button
                         key={status}
-                        onClick={() => updateOrderStatus(selectedOrder.id, status as typeof selectedOrder.status)}
+                        onClick={() => {
+                          updateOrderStatus(selectedOrder.id, status as typeof selectedOrder.status);
+                          if (selectedOrder.userId) {
+                            updateOrderStatusInFirestore(selectedOrder.userId, selectedOrder.id, status as typeof selectedOrder.status);
+                          }
+                        }}
                         className="w-full rounded-full bg-white border border-brand-primary/15 px-4 py-3 text-sm font-semibold text-brand-fb hover:bg-brand-primary/5 transition"
                       >
                         Cập nhật sang {status}

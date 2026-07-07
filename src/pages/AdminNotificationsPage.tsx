@@ -58,6 +58,13 @@ export default function AdminNotificationsPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-brand-primary/10">
+            {sortedNotifications.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-14 text-center text-brand-fb/50 italic">
+                  Chưa có thông báo nào. Thông báo sẽ tự động xuất hiện khi trạng thái đơn hàng thật được cập nhật.
+                </td>
+              </tr>
+            )}
             {sortedNotifications.map((item) => (
               <tr key={item.id} className="hover:bg-white transition-colors">
                 <td className="px-4 py-4 font-mono text-brand-fb/70">{new Date(item.createdAt).toLocaleString("vi-VN")}</td>

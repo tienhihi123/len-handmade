@@ -6,7 +6,12 @@ import {
 } from "../data/sampleData";
 import { CATEGORIES, PRODUCTS, REVIEWS, BLOGS } from "../data";
 import { BRAND_NAME, BRAND_DOMAIN } from "../constants/brand";
-import { auth, onAuthStateChanged, signOut } from "../lib/firebase";
+import { auth, onAuthStateChanged, signOut, isFirebaseConfigured } from "../lib/firebase";
+import { getActiveStaff } from "../lib/staffService";
+import { subscribeToCategories, upsertCategory } from "../lib/categoryService";
+import { subscribeToProducts, upsertProduct, updateProductFields } from "../lib/productService";
+import { subscribeToVariants, upsertVariant } from "../lib/variantService";
+import { subscribeToInventoryTransactions, adjustVariantStock as firestoreAdjustStock } from "../lib/inventoryService";
 import { 
   UserRole, UserActivityLog, ProductViewStats, Coupon, Mission, Banner, MarketingArticle,
   demoUsers, coupons as initialCoupons, missions as initialMissions, banners as initialBanners, 
@@ -46,7 +51,9 @@ interface AppContextType {
   productsList: Product[];
   setProductsList: React.Dispatch<React.SetStateAction<Product[]>>;
   categoriesList: Category[];
+  setCategoriesList: React.Dispatch<React.SetStateAction<Category[]>>;
   blogsList: BlogPost[];
+  setBlogsList: React.Dispatch<React.SetStateAction<BlogPost[]>>;
   reviewsList: Review[];
   setReviewsList: React.Dispatch<React.SetStateAction<Review[]>>;
   marketingArticles: MarketingArticle[];
@@ -102,6 +109,7 @@ interface AppContextType {
   // All orders (global: user orders + sample orders combined)
   allOrders: LoggedOrder[];
   updateOrderStatus: (orderId: string, newStatus: LoggedOrder["status"]) => void;
+  refreshOrders: () => void;
 
   // Utilities
   hasPermission: (permission: string) => boolean;
@@ -135,16 +143,75 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return PRODUCTS;
   });
 
+  // Database of Categories (editable so Admin can rename/add/delete)
+  const [categoriesList, setCategoriesList] = useState<Category[]>(() => {
+    const saved = localStorage.getItem("len_categories");
+    return saved ? JSON.parse(saved) : CATEGORIES;
+  });
+  useEffect(() => {
+    localStorage.setItem("len_categories", JSON.stringify(categoriesList));
+  }, [categoriesList]);
+
+  // Firestore is the source of truth once reachable — subscribe to real-time updates.
+  // Migration from localStorage to Firestore is handled manually via Admin migration tool.
+  useEffect(() => {
+    if (!isFirebaseConfigured) return;
+    const unsubscribe = subscribeToCategories((remote) => {
+      setCategoriesList(remote);
+    });
+    return unsubscribe;
+  }, []);
+
   // DB of Reviews
   const [reviewsList, setReviewsList] = useState<Review[]>(() => {
     const saved = localStorage.getItem("len_reviews");
     return saved ? JSON.parse(saved) : REVIEWS;
   });
 
-  // DB of marketing articles
+  // DB of Blog posts — the SAME real content shown on the storefront /blog page,
+  // so Admin edits actually change what customers see (not a disconnected mock list).
+  // Seed posts (matched by id) always refresh from BLOGS so content/image fixes ship
+  // immediately, while brand new posts an admin writes are preserved as-is.
+  const [blogsList, setBlogsList] = useState<BlogPost[]>(() => {
+    const saved = localStorage.getItem("len_blogs");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as BlogPost[];
+        const sourceIds = new Set(BLOGS.map(post => post.id));
+        const refreshedSourcePosts = BLOGS.map(post => {
+          const savedPost = parsed.find(item => item.id === post.id);
+          return savedPost ? { ...savedPost, ...post } : post;
+        });
+        const userCreatedPosts = parsed.filter(post => !sourceIds.has(post.id));
+        return [...refreshedSourcePosts, ...userCreatedPosts];
+      } catch (e) {
+        return BLOGS;
+      }
+    }
+    return BLOGS;
+  });
+  useEffect(() => {
+    localStorage.setItem("len_blogs", JSON.stringify(blogsList));
+  }, [blogsList]);
+
+  // DB of marketing articles — same seed-refresh strategy as blogsList above.
   const [marketingArticles, setMarketingArticles] = useState<MarketingArticle[]>(() => {
     const saved = localStorage.getItem("len_marketing_articles");
-    return saved ? JSON.parse(saved) : initialArticles;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as MarketingArticle[];
+        const sourceIds = new Set(initialArticles.map(article => article.id));
+        const refreshedSourceArticles = initialArticles.map(article => {
+          const savedArticle = parsed.find(item => item.id === article.id);
+          return savedArticle ? { ...savedArticle, ...article } : article;
+        });
+        const userCreatedArticles = parsed.filter(article => !sourceIds.has(article.id));
+        return [...refreshedSourceArticles, ...userCreatedArticles];
+      } catch (e) {
+        return initialArticles;
+      }
+    }
+    return initialArticles;
   });
 
   // E-commerce states (Dynamic based on active user)
@@ -234,6 +301,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [productsList]);
 
   useEffect(() => {
+    if (!isFirebaseConfigured) return;
+    const unsubscribe = subscribeToProducts((remote) => {
+      setProductsList(remote);
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem("len_reviews", JSON.stringify(reviewsList));
   }, [reviewsList]);
 
@@ -293,17 +368,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Set up Firebase Auth State Listener
   useEffect(() => {
     if (auth) {
-      const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
         if (firebaseUser) {
           const lowerEmail = firebaseUser.email || `firebase_${firebaseUser.uid}@lenhandmade.vn`;
           const customName = firebaseUser.displayName || `Nàng thơ Dệt Sợi`;
-          
+
           const profileKey = `lenhandmade_user_${firebaseUser.uid}_profile`;
           const existingProfile = localStorage.getItem(profileKey);
-          
+
           let demoUser: DemoUser;
+
+          // Check Firestore staff/{uid} instead of mock data
+          const staffDoc = await getActiveStaff(firebaseUser.uid);
           const mappedDemoUser = demoUsers.find(u => u.email.toLowerCase() === lowerEmail);
-          if (mappedDemoUser) {
+
+          if (staffDoc && staffDoc.status === "active") {
+            // Staff session from Firestore — always fresh, never cached
+            demoUser = {
+              id: firebaseUser.uid,
+              name: staffDoc.displayName,
+              email: lowerEmail,
+              role: staffDoc.roleId === "admin" ? "admin" : "store_owner",
+              status: "active",
+              avatar: firebaseUser.photoURL || staffDoc.avatar,
+              createdAt: staffDoc.createdAt,
+              lastLoginAt: new Date().toISOString(),
+              totalLoginCount: 1
+            };
+          } else if (mappedDemoUser) {
             demoUser = {
               ...mappedDemoUser,
               role: mappedDemoUser.role as DemoUser["role"],
@@ -319,6 +411,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               demoUser.avatar = firebaseUser.photoURL;
             }
           } else {
+            // Regular customer
             demoUser = {
               id: firebaseUser.uid,
               name: customName,
@@ -331,7 +424,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               totalLoginCount: 1
             };
           }
-          
+
           localStorage.setItem(profileKey, JSON.stringify(demoUser));
           storageSetCurrentUser(demoUser);
           setCurrentUser(demoUser);
@@ -341,7 +434,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             id: `log_${Date.now()}`,
             userId: firebaseUser.uid,
             userName: customName,
-            role: "customer",
+            role: demoUser.role,
             action: "Đăng nhập hệ thống (Firebase)",
             createdAt: new Date().toISOString()
           };
@@ -502,9 +595,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { localStorage.setItem("len_customers", JSON.stringify(customersList)); }, [customersList]);
 
   // === NEW STATE: Notifications ===
+  // Starts empty (real notifications only) — the demo SAMPLE_NOTIFICATIONS
+  // fixtures are dropped so the admin panel only ever shows messages actually
+  // sent by sendNotification() below when a real order's status changes.
   const [notificationsList, setNotificationsList] = useState<OrderNotification[]>(() => {
     const saved = localStorage.getItem("len_notifications");
-    return saved ? JSON.parse(saved) : SAMPLE_NOTIFICATIONS;
+    if (!saved) return [];
+    const sampleIds = new Set(SAMPLE_NOTIFICATIONS.map((n) => n.id));
+    return (JSON.parse(saved) as OrderNotification[]).filter((n) => !sampleIds.has(n.id));
   });
   useEffect(() => { localStorage.setItem("len_notifications", JSON.stringify(notificationsList)); }, [notificationsList]);
 
@@ -546,35 +644,89 @@ export function AppProvider({ children }: { children: ReactNode }) {
   });
   useEffect(() => { localStorage.setItem("len_variants", JSON.stringify(productVariants)); }, [productVariants]);
 
+  useEffect(() => {
+    if (!isFirebaseConfigured) return;
+    const unsubscribe = subscribeToVariants((remote) => {
+      setProductVariants(remote);
+    });
+    return unsubscribe;
+  }, []);
+
   const [inventoryLogs, setInventoryLogs] = useState<InventoryLog[]>(() => {
     const saved = localStorage.getItem("len_inventory_logs");
     return saved ? JSON.parse(saved) : SAMPLE_INVENTORY_LOGS;
   });
   useEffect(() => { localStorage.setItem("len_inventory_logs", JSON.stringify(inventoryLogs)); }, [inventoryLogs]);
 
-  const adjustVariantStock = (variantId: string, change: number, reason: string) => {
-    setProductVariants(prev => prev.map(v => {
-      if (v.id !== variantId) return v;
-      const newQty = Math.max(0, v.stockQuantity + change);
-      const newStatus: ProductVariant["status"] = newQty === 0 ? "out-of-stock" : newQty <= 5 ? "low-stock" : "in-stock";
-      // Log the change
-      const log: InventoryLog = {
-        id: `log_inv_${Date.now()}`,
-        productId: v.productId,
-        productName: v.productName,
-        variantId: v.id,
-        color: v.color,
-        size: v.size,
-        changeType: change < 0 ? "sale" : "restock",
-        quantityChanged: change,
-        previousStock: v.stockQuantity,
-        newStock: newQty,
-        reason,
-        createdAt: new Date().toISOString()
-      };
-      setInventoryLogs(prev2 => [log, ...prev2]);
-      return { ...v, stockQuantity: newQty, status: newStatus };
-    }));
+  // Subscribe to inventory transactions from Firestore
+  useEffect(() => {
+    if (!isFirebaseConfigured) return;
+    const unsubscribe = subscribeToInventoryTransactions((remote) => {
+      if (remote.length > 0) {
+        setInventoryLogs(remote);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  const adjustVariantStock = async (variantId: string, change: number, reason: string) => {
+    if (!isFirebaseConfigured) {
+      // Fallback to localStorage if Firestore not available
+      setProductVariants(prev => {
+        let touched: ProductVariant | null = null;
+        const next = prev.map(v => {
+          if (v.id !== variantId) return v;
+          const newQty = Math.max(0, v.stockQuantity + change);
+          const newStatus: ProductVariant["status"] = newQty === 0 ? "out-of-stock" : newQty <= 5 ? "low-stock" : "in-stock";
+          const log: InventoryLog = {
+            id: `log_inv_${Date.now()}`,
+            productId: v.productId,
+            productName: v.productName,
+            variantId: v.id,
+            color: v.color,
+            size: v.size,
+            changeType: change < 0 ? "sale" : "restock",
+            quantityChanged: change,
+            previousStock: v.stockQuantity,
+            newStock: newQty,
+            reason,
+            createdAt: new Date().toISOString()
+          };
+          setInventoryLogs(prev2 => [log, ...prev2]);
+          touched = { ...v, stockQuantity: newQty, status: newStatus };
+          return touched;
+        });
+        if (touched) {
+          const productId = touched.productId;
+          const aggregate = next.filter(v => v.productId === productId).reduce((sum, v) => sum + v.stockQuantity, 0);
+          setProductsList(prevProducts => prevProducts.map(p => p.id === productId ? { ...p, stock: aggregate } : p));
+        }
+        return next;
+      });
+      return;
+    }
+
+    // Use Firestore transaction for atomic stock adjustment
+    try {
+      const changeType: "restock" | "sale" | "adjustment" | "return" =
+        change < 0 ? "sale" : change > 0 ? "restock" : "adjustment";
+      const { variant: updated, log } = await firestoreAdjustStock(variantId, change, reason, changeType);
+
+      // Update local state to reflect Firestore changes
+      setProductVariants(prev => prev.map(v => v.id === variantId ? updated : v));
+      setInventoryLogs(prev => [log, ...prev]);
+
+      // Sync product-level aggregate stock
+      const productId = updated.productId;
+      const aggregate = productVariants
+        .filter(v => v.productId === productId)
+        .reduce((sum, v) => sum + (v.id === variantId ? updated.stockQuantity : v.stockQuantity), 0);
+      setProductsList(prevProducts => prevProducts.map(p => p.id === productId ? { ...p, stock: aggregate } : p));
+      await updateProductFields(productId, { stock: aggregate });
+    } catch (error) {
+      console.error("adjustVariantStock error:", error);
+      throw error;
+    }
   };
 
   // Revenue data (static for demo)
@@ -602,6 +754,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     });
     if (targetOrder) sendNotification(targetOrder, newStatus);
+  };
+
+  // Re-reads this user's orders from localStorage — picks up changes written
+  // by another browser tab (e.g. a customer completing checkout) without a full reload.
+  const refreshOrders = () => {
+    const user = getCurrentUser();
+    if (user) setOrdersList(getUserOrders(user.id));
   };
 
   // Demo simulation ticker — disabled by default to avoid unnecessary re-renders.
@@ -637,8 +796,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         
         productsList,
         setProductsList,
-        categoriesList: CATEGORIES,
-        blogsList: BLOGS,
+        categoriesList,
+        setCategoriesList,
+        blogsList,
+        setBlogsList,
         reviewsList,
         setReviewsList,
         marketingArticles,
@@ -682,7 +843,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         topProducts,
         allOrders,
         updateOrderStatus,
-        
+        refreshOrders,
+
         hasPermission
       }}
     >

@@ -1,4 +1,12 @@
 import { Product, Category, Review, BlogPost } from "./types";
+import cachBaoQuanLenImg from "./assets/images/cachbaoquanlen.png";
+import phoiDoImg from "./assets/images/phoido.png";
+import goiYMonQuaLenImg from "./assets/images/goiymonqualen.png";
+import yNghiaImg from "./assets/images/ynghia.png";
+import goiGonYeThuongImg from "./assets/images/goigonyethuong.png";
+import monQuaGiuaBanThanImg from "./assets/images/monquagiuabanthan.png";
+import gocNhoImg from "./assets/images/gocnho.png";
+import monQuaLenYNghiaImg from "./assets/images/monqualenynghiax.png";
 
 export const CATEGORIES: Category[] = [
   {
@@ -58,7 +66,7 @@ export const PRODUCTS: Product[] = [
     slug: "ao-len-buom-handmade",
     name: "Áo len bướm handmade",
     price: 100000,
-    priceLabel: "1xxk",
+    priceLabel: undefined,
     priceMin: 100000,
     priceMax: 199000,
     requiresQuote: true,
@@ -95,7 +103,7 @@ export const PRODUCTS: Product[] = [
     slug: "bop-len-mini-xinh-xinh",
     name: "Bóp len mini xinh xinh",
     price: 50000,
-    priceLabel: "5xk",
+    priceLabel: undefined,
     priceMin: 50000,
     priceMax: 99000,
     requiresQuote: false,
@@ -128,7 +136,7 @@ export const PRODUCTS: Product[] = [
     slug: "tui-len-di-hoc-di-choi-di-bien",
     name: "Túi len đi học, đi chơi, đi biển",
     price: 200000,
-    priceLabel: "2xxk",
+    priceLabel: undefined,
     priceMin: 200000,
     priceMax: 299000,
     requiresQuote: true,
@@ -318,6 +326,7 @@ export const REVIEWS: Review[] = [
 ];
 
 export const BLOGS: BlogPost[] = [
+  // Cẩm Nang category (3 articles)
   {
     id: "blog_1",
     title: "Cách bảo quản và giặt túi len handmade không bao giờ rão phom",
@@ -326,9 +335,41 @@ export const BLOGS: BlogPost[] = [
     category: "Cẩm Nang",
     readTime: "5 phút đọc",
     date: "22 Tháng 5, 2026",
-    image: "https://images.unsplash.com/photo-1517242046021-82ee19d4a410?auto=format&fit=crop&q=80&w=400",
-    content: "Cách bảo quản và giặt túi len handmade luôn là vấn đề được nhiều chị em quan tâm khi sở hữu các tác phẩm tinh tế này...\n\n1. Giặt tay nhẹ nhàng bằng xà bông dịu nhẹ.\n2. Tránh vắt bóp quá mạnh gây sần sùi hoặc rão thớ dệt.\n3. Phơi nằm ngang thay vì treo thẳng đứng."
+    image: cachBaoQuanLenImg,
+    content: `<h3>Giặt đúng cách, túi len đẹp lâu như ngày đầu</h3>
+              <p>Một chiếc túi len handmade không chỉ là phụ kiện, mà còn là thành quả của rất nhiều giờ đan móc tỉ mỉ. Chăm sóc sai một chút là túi có thể mất dáng, xù sợi hoặc giãn form. Con người mất công chọn túi đẹp rồi lại tiện tay quăng vào máy giặt, đúng là một vòng đời đầy bi kịch. 🧶</p>
+              <h3>1. Giặt tay thật nhẹ với xà phòng dịu nhẹ</h3>
+              <p>Ngâm túi trong nước mát hoặc hơi ấm, dùng tay bóp nhẹ để làm sạch. Không chà xát mạnh và không dùng chất tẩy vì có thể làm sợi len khô, xơ và phai màu.</p>
+              <h3>2. Không vắt hoặc xoắn túi</h3>
+              <p>Sau khi giặt, hãy ép nhẹ để nước thoát bớt rồi dùng khăn sạch thấm khô. Vắt quá mạnh có thể khiến bề mặt len sần sùi, giãn thớ và mất form ban đầu.</p>
+              <h3>3. Phơi nằm ngang để giữ dáng</h3>
+              <p>Đặt túi trên mặt phẳng thoáng mát, chỉnh lại form trước khi phơi và tránh ánh nắng gắt. Không treo túi khi còn ướt vì sức nặng của nước dễ làm quai và thân túi bị kéo dài.</p>
+              <p>Chỉ cần chăm sóc đúng cách, chiếc túi len handmade của bạn sẽ luôn đẹp bền như ngày đầu tiên bạn đón về.</p>`
   },
+  {
+    id: "blog_4",
+    title: "Bí quyết đan móc len cơ bản cho người mới bắt đầu từ A đến Z",
+    slug: "bi-quyet-dan-moc-len-co-ban",
+    description: "Hướng dẫn chi tiết các mũi đan cơ bản, cách chọn kim móc, sợi len phù hợp và những lưu ý quan trọng giúp bạn tạo ra sản phẩm len đẹp ngay từ lần đầu.",
+    category: "Cẩm Nang",
+    readTime: "8 phút đọc",
+    date: "18 Tháng 5, 2026",
+    image: gocNhoImg,
+    content: "Đan móc len là nghệ thuật tuyệt vời mà ai cũng có thể học được...\n\n1. Chọn kim móc size phù hợp với độ dày sợi.\n2. Học mũi xích, mũi đơn, mũi kép cơ bản.\n3. Luyện tập đều tay qua các mẫu đơn giản."
+  },
+  {
+    id: "blog_5",
+    title: "Bí Mật Sau Mỗi Cuộn Len: Cotton, Merino, Mohair Và Alpaca Khác Nhau Thế Nào?",
+    slug: "cach-chon-soi-len-phu-hop",
+    description: "Khám phá sự khác biệt giữa len Milk Cotton, len acrylic, len lông cừu và cách lựa chọn loại sợi tốt nhất cho túi xách, thú bông hay áo len của bạn.",
+    category: "Cẩm Nang",
+    readTime: "6 phút đọc",
+    date: "10 Tháng 5, 2026",
+    image: monQuaLenYNghiaImg,
+    content: "Mỗi cuộn len nằm ngoan ngoãn trên kệ đều cất giấu một giấc mơ chưa được kể. Thế nhưng, giữa vô vàn sắc màu và chất liệu, chọn sai len giống như việc chọn nhầm nhạc cụ cho một bản tình ca. Hãy cùng điểm qua những \"vũ khí\" hoàn hảo nhất cho từng dự án của bạn nhé:\n\nSợi Cotton (\"Nàng thơ\" mùa hè): Mát mẻ, ít xù lông và lên mũi móc cực kỳ sắc nét. Đây là mảnh ghép hoàn hảo cho thú bông amigurumi, túi xách vintage hay các món đồ mùa hè.\n\nLen Lông Cừu - Merino (Cái ôm mùa đông): Vô cùng ấm áp, xốp nhẹ và không gây ngứa ngáy. Chân ái của những chiếc áo cổ lọ và khăn quàng cổ (nhớ giặt tay nhẹ nhàng nhé!).\n\nMohair & Alpaca (Đám mây lãng mạn): Bồng bềnh với lớp lông tơ mờ ảo tuyệt đẹp. Sinh ra để dành cho những chiếc áo khoác hờ, khăn mỏng bay bổng hoặc chập cùng len khác để tăng độ ấm.\n\nAcrylic & Sợi Pha (Người bạn bền bỉ): Bảng màu vô tận, giá thành nhẹ nhàng và cực kỳ dễ chăm sóc (có thể giặt máy). Lựa chọn an toàn tuyệt vời cho người mới bắt đầu hoặc để móc chăn sofa."
+  },
+
+  // Ý Nghĩa Quà category (4 articles)
   {
     id: "blog_2",
     title: "Gợi ý chọn quà tặng len thủ công cực chất cho mùa tốt nghiệp & sinh nhật",
@@ -337,9 +378,64 @@ export const BLOGS: BlogPost[] = [
     category: "Ý Nghĩa Quà",
     readTime: "4 phút đọc",
     date: "15 Tháng 5, 2026",
-    image: "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?auto=format&fit=crop&q=80&w=400",
-    content: "Các món quà từ sợi len đan móc tay mộc mạc luôn mang một hơi thở ấm áp đặc trưng...\n\n- Hoa tulip len đại diện cho sự kiêu hãnh lãng mạn.\n- Hoa hướng dương len mang thông điệp tích cực.\n- Thú bông Amigurumi tai dài mềm mại."
+    image: goiYMonQuaLenImg,
+    content: `<h3>Vì sao một món quà len lại "nặng ký" hơn một món quà mua sẵn?</h3>
+              <p>Các món quà từ sợi len đan móc tay mộc mạc luôn mang một hơi thở ấm áp đặc trưng mà đồ công nghiệp khó lòng sao chép được. Mỗi mũi đan là một khoảng thời gian người tặng dành riêng cho người nhận — điều mà không cửa hàng nào bán được bằng tiền.</p>
+              <h3>Giải mã "ngôn ngữ" của từng loại hoa len</h3>
+              <p>Hoa tulip len đại diện cho sự kiêu hãnh và một tình cảm lãng mạn vừa chớm nở, rất hợp để tặng người thương trong ngày kỷ niệm. Hoa hướng dương len lại mang thông điệp tích cực, hướng về phía ánh sáng — món quà lý tưởng để động viên bạn bè trong mùa thi hoặc tốt nghiệp.</p>
+              <h3>Với bạn thân: chọn sự đáng yêu làm chủ đạo</h3>
+              <p>Thú bông Amigurumi tai dài mềm mại, bảng màu pastel nhẹ nhàng là lựa chọn an toàn cho những người bạn thân thiết — vừa đủ dễ thương để đặt trên bàn học, vừa đủ ý nghĩa để nhắc về một tình bạn bền chặt.</p>
+              <h3>Với người đặc biệt: đầu tư vào chi tiết cá nhân hóa</h3>
+              <p>Một chiếc túi len thêu tên, hoặc bó hoa len phối đúng màu yêu thích của người nhận, sẽ khiến món quà trở nên "chỉ dành riêng cho họ". Đừng ngại nhắn nhỏ với tiệm để được tư vấn phối màu và thêu chữ miễn phí.</p>
+              <h3>Mẹo chọn quà nhanh theo dịp</h3>
+              <p>Sinh nhật: ưu tiên màu sắc theo cung hoàng đạo hoặc sở thích cá nhân. Tốt nghiệp: chọn tông màu trang trọng như be, nâu đất hoặc xanh rêu. Tri ân thầy cô: một bó hoa len nhỏ kèm thiệp viết tay luôn là lựa chọn không bao giờ lỗi mốt.</p>`
   },
+  {
+    id: "blog_6",
+    title: "Ý nghĩa sâu sắc của hoa len handmade trong các dịp đặc biệt",
+    slug: "y-nghia-hoa-len-handmade",
+    description: "Khám phá ý nghĩa tinh thần đằng sau mỗi loại hoa len - từ hoa hồng biểu trưng tình yêu đến hoa cẩm chướng tượng trưng lòng biết ơn người mẹ.",
+    category: "Ý Nghĩa Quà",
+    readTime: "5 phút đọc",
+    date: "12 Tháng 5, 2026",
+    image: yNghiaImg,
+    content: `<h3>Vì sao hoa len lại được chọn thay hoa tươi trong nhiều dịp?</h3>
+              <p>Mỗi bông hoa len không chỉ đẹp mà còn mang thông điệp riêng, và quan trọng hơn cả — nó không tàn. Trong khi hoa tươi chỉ giữ được vài ngày, một bó hoa len có thể ở lại trên bàn học, góc phòng hay bàn làm việc suốt nhiều năm, như một lời nhắc nhớ bền bỉ về người đã tặng.</p>
+              <h3>Hoa hồng len: Tình yêu bất diệt</h3>
+              <p>Sắc đỏ của hoa hồng len tượng trưng cho một tình yêu không phai màu theo thời gian — khác với hoa hồng thật vốn chỉ nở rộ rồi héo úa. Đây là lựa chọn phổ biến nhất cho các dịp kỷ niệm, cầu hôn hoặc ngày Valentine.</p>
+              <h3>Hoa cẩm chướng len: Lòng biết ơn</h3>
+              <p>Cẩm chướng từ lâu đã gắn liền với hình ảnh người mẹ. Một bó cẩm chướng len tặng mẹ vào ngày Vu Lan hay 8/3 mang ý nghĩa "con luôn nhớ ơn dưỡng dục", đồng thời có thể lưu giữ được lâu hơn nhiều so với hoa cắt cành.</p>
+              <h3>Hoa lavender len: Sự thanh thản và chữa lành</h3>
+              <p>Với tông tím dịu nhẹ, lavender len thường được chọn làm quà cho những người đang cần được an ủi — sau một giai đoạn khó khăn, một cuộc chia tay, hay đơn giản là một ngày mệt mỏi. Nó không hô hào, chỉ lặng lẽ ở đó như một lời động viên nhẹ nhàng.</p>
+              <h3>Hoa hướng dương len: Niềm tin và sự lạc quan</h3>
+              <p>Hướng dương luôn quay về phía mặt trời, vì vậy loài hoa này thường được tặng cho ai đó đang bắt đầu một hành trình mới — nhập học, chuyển việc, hoặc cần thêm động lực để bước tiếp.</p>
+              <h3>Chọn hoa theo đúng câu chuyện bạn muốn kể</h3>
+              <p>Thay vì chọn hoa chỉ vì đẹp, hãy nghĩ đến câu chuyện bạn muốn gửi gắm: một lời cảm ơn, một sự an ủi, hay một tình yêu bền lâu. Tiệm Len Nhỏ luôn sẵn sàng tư vấn phối màu và loại hoa phù hợp nhất với thông điệp riêng của bạn.</p>`
+  },
+  {
+    id: "blog_7",
+    title: "Quà tặng thú bông len cho bé - Món quà an toàn và đầy yêu thương",
+    slug: "qua-tang-thu-bong-len-cho-be",
+    description: "Tại sao thú bông Amigurumi len handmade là món quà hoàn hảo cho trẻ em - an toàn, mềm mại và chứa đựng tình cảm của người làm từng mũi đan.",
+    category: "Ý Nghĩa Quà",
+    readTime: "4 phút đọc",
+    date: "05 Tháng 5, 2026",
+    image: goiGonYeThuongImg,
+    content: "Thú bông len handmade là món quà tuyệt vời cho bé...\n\n- Chất liệu an toàn, không độc hại.\n- Mềm mại, ấm áp.\n- Mỗi sản phẩm đều là duy nhất."
+  },
+  {
+    id: "blog_8",
+    title: "Túi len handmade - Món quà thời trang bền vững cho người bạn thân",
+    slug: "tui-len-handmade-qua-tang-ben-vung",
+    description: "Khám phá lý do túi len handmade trở thành xu hướng quà tặng được yêu thích - kết hợp giữa thời trang, thân thiện môi trường và ý nghĩa cá nhân.",
+    category: "Ý Nghĩa Quà",
+    readTime: "5 phút đọc",
+    date: "28 Tháng 4, 2026",
+    image: monQuaGiuaBanThanImg,
+    content: "Túi len không chỉ là phụ kiện thời trang mà còn là lời nhắn yêu thương...\n\n- Thân thiện môi trường.\n- Phong cách cá nhân hoá.\n- Bền bỉ theo năm tháng."
+  },
+
+  // Xu Hướng category
   {
     id: "blog_3",
     title: "Cách phối đồ với túi len cực xinh xu hướng nàng thơ Soft-Girl hiện đại",
@@ -348,7 +444,7 @@ export const BLOGS: BlogPost[] = [
     category: "Xu Hướng",
     readTime: "6 phút đọc",
     date: "08 Tháng 5, 2026",
-    image: "https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=400",
+    image: phoiDoImg,
     content: "Phong cách Soft-Girl kết hợp với các bộ trang phục đầm xòe hay sơ mi họa tiết mộc mạc...\n\n- Chọn các loại túi tone màu đất hoặc pastel thơ mộng.\n- Kết hợp cùng kẹp hoa cúc hoặc mác gỗ mộc mạc."
   }
 ];

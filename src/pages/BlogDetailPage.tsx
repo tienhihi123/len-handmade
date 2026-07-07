@@ -1,41 +1,127 @@
-import { useEffect } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Clock, Calendar, Bookmark, Share2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { motion } from "motion/react";
+import { ArrowLeft, Clock, Calendar, User, Share2, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
 import { useApp } from "../context/AppContext";
+import { usePageSeo } from "../hooks/usePageSeo";
 import { BRAND_NAME } from "../constants/brand";
+
+const COLLAPSED_HEIGHT = 220;
 
 export default function BlogDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  const { blogsList, marketingArticles } = useApp();
+  const location = useLocation();
+  const { blogsList = [], marketingArticles = [] } = useApp();
+  const [expanded, setExpanded] = useState(false);
 
-  // Mark article as read to achieve "Đọc tạp chí" mission
+  // Prefer browser back so the /blog listing restores its previous page/filter state
+  // (e.g. page 2) instead of always resetting to page 1 via a fresh "/blog" navigation.
+  const handleBackToBlog = () => {
+    if (location.key !== "default") {
+      navigate(-1);
+    } else {
+      navigate("/blog");
+    }
+  };
+
+  const staticBlog = blogsList.find((b) => b.slug === slug);
+  const liveBlog = marketingArticles.find((m) => m.slug === slug);
+  const found = Boolean(staticBlog || liveBlog);
+
+  const title = staticBlog?.title || liveBlog?.title || "";
+  const category = staticBlog?.category || liveBlog?.tag || "Mỹ Nghệ";
+  const date = staticBlog?.date || liveBlog?.date || "";
+  const readTime = staticBlog?.readTime || "4 phút đọc";
+  const author = liveBlog?.author || `${BRAND_NAME} Team`;
+  const image =
+    staticBlog?.image ||
+    liveBlog?.image ||
+    "https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=800";
+  const rawContent = staticBlog?.content || liveBlog?.content || "";
+  const seoDescription =
+    liveBlog?.metaDescription || staticBlog?.description || `Bài viết ${title} — ${BRAND_NAME}.`;
+  const isHtml = /<\/?[a-z][\s\S]*>/i.test(rawContent);
+  const paragraphs = useMemo(
+    () => (isHtml ? [] : rawContent.split(/\n\n+/).filter(Boolean)),
+    [rawContent, isHtml]
+  );
+  const isLongArticle = rawContent.length > 480;
+
   useEffect(() => {
-    localStorage.setItem("len_blog_read_achievement", "true");
-  }, []);
+    setExpanded(false);
+  }, [slug]);
 
-  // Synthesize matching details or fallback safely
-  const staticBlog = blogsList.find(b => b.slug === slug);
-  const liveBlog = marketingArticles.find(m => m.slug === slug);
+  usePageSeo(found ? `${title} — ${BRAND_NAME}` : `Không tìm thấy bài viết — ${BRAND_NAME}`, seoDescription);
 
-  const title = staticBlog ? staticBlog.title : liveBlog ? liveBlog.title : "Tạp chí chữa lành vỡ sợi";
-  const category = staticBlog ? staticBlog.category : liveBlog ? liveBlog.tag : "Mỹ Nghệ";
-  const date = staticBlog ? staticBlog.date : liveBlog ? liveBlog.date : "Hôm nay";
-  const readTime = staticBlog ? staticBlog.readTime || "5 phút đọc" : "4 phút đọc";
-  const image = staticBlog ? staticBlog.image : liveBlog ? liveBlog.image : "https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=800";
-  const content = staticBlog ? staticBlog.content : liveBlog ? liveBlog.content : "Sợi dệt lãng mạn lót mộc...";
+  useEffect(() => {
+    if (found) localStorage.setItem("len_blog_read_achievement", "true");
+  }, [found]);
+
+  const allBlogs = [
+    ...blogsList.map((b) => ({
+      id: b.id,
+      title: b.title,
+      slug: b.slug,
+      category: b.category,
+      date: b.date,
+      image: b.image,
+    })),
+    ...marketingArticles.map((m) => ({
+      id: m.id,
+      title: m.title,
+      slug: m.slug,
+      category: m.tag,
+      date: m.date,
+      image: m.image,
+    })),
+  ];
+  const related = allBlogs.filter((b) => b.slug !== slug).slice(0, 3);
+
+  if (!found) {
+    return (
+      <div className="bg-brand-bg min-h-screen pt-32 pb-24 px-4 text-center">
+        <div className="max-w-md mx-auto space-y-4">
+          <h1 className="font-serif font-bold text-2xl text-brand-fb">
+            Không tìm thấy bài viết
+          </h1>
+          <p className="font-sans text-sm text-brand-fb/60">
+            Bài viết nàng tìm có thể đã bị gỡ hoặc đường dẫn không chính xác.
+          </p>
+          <button
+            onClick={handleBackToBlog}
+            className="inline-flex items-center gap-1.5 text-sm font-sans font-semibold px-6 py-3 rounded-full bg-brand-primary text-white hover:opacity-90 transition-opacity cursor-pointer"
+          >
+            <ArrowLeft size={14} /> Về trang Tạp Chí
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-brand-bg min-h-screen pt-32 pb-24 px-4 text-left">
-      <div className="max-w-3xl mx-auto space-y-8 bg-brand-card rounded-[36px] border border-brand-primary/10 p-6 sm:p-10 shadow-sm">
-        
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+        className="max-w-3xl mx-auto space-y-8 bg-brand-card rounded-[36px] border border-brand-primary/10 p-6 sm:p-10 shadow-sm"
+      >
         {/* Navigation line */}
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-1.5 font-sans text-xs text-brand-fb/60 hover:text-brand-primary transition-colors cursor-pointer"
-        >
-          <ArrowLeft size={14} /> Trở về rạp bài viết
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={handleBackToBlog}
+            className="flex items-center gap-1.5 font-sans text-xs text-brand-fb/60 hover:text-brand-primary transition-colors cursor-pointer"
+          >
+            <ArrowLeft size={14} /> Trở về Tạp Chí
+          </button>
+          <button
+            onClick={() => navigate("/blog")}
+            className="flex items-center gap-1.5 font-sans text-xs text-brand-fb/60 hover:text-brand-primary transition-colors cursor-pointer"
+          >
+            Về Trang Blog
+          </button>
+        </div>
 
         {/* Article header meta */}
         <div className="space-y-4">
@@ -56,7 +142,7 @@ export default function BlogDetailPage() {
             </span>
             <span>•</span>
             <span className="flex items-center gap-1 text-brand-primary">
-              <Bookmark size={13} /> Gợi ý thợ thêu nhài
+              <User size={13} /> {author}
             </span>
           </div>
         </div>
@@ -71,50 +157,104 @@ export default function BlogDetailPage() {
           />
         </div>
 
-        {/* Article structured markup reading body */}
-        <div className="font-sans text-sm text-brand-fb/80 space-y-5 leading-relaxed text-left border-b border-brand-primary/5 pb-8">
-          <p className="font-bold text-brand-fb text-base border-l-4 border-brand-primary pl-3 py-1.5 bg-brand-primary/5 rounded-r">
-            Nơi sợi len quấn trọn tâm sự trong veo, lưu bảo bền chất dệt bàn tay mộc mạc Việt Nam.
-          </p>
-
-          <p>
-            Mỗi sợi len hay cái chạm nhạt tơ thực chất là một sợi rung liên cảm chứa đựng thời gian của người nghệ nhân móc khâu tay. Trong bài thêu lăng kính này, ban dệt {BRAND_NAME} gợi mở những bí quyết giữ phom cực chuẩn cho tác phẩm dệt của Nàng.
-          </p>
-
-          <h3 className="font-serif font-black text-md text-brand-fb pt-4 flex items-center gap-1.5">
-            1. Nguyên lý cấn giũ ấm:
-          </h3>
-          <p>
-            Cần giũ ấm bằng tay nhẹ nhàng bằng xà bông thiên nhiên hoặc nước giặt hữu cơ dịu lạnh. Tuyệt đối không vò nát sợi hay chải mác len bằng cước bàn chải đanh xơ tủy, phá vỡ liên kết tơ tằm mịn màng.
-          </p>
-
-          <h3 className="font-serif font-black text-md text-brand-fb pt-4 flex items-center gap-1.5">
-            2. Trải nghiệm phơi dã ngoại khói nhài:
-          </h3>
-          <p>
-            Không treo dốc túi gối thêu khi đang ướt nọng tủy nước. Hãy đặt sấy khô nằm ngang trên khăn giấy mộc trải râm mát dịu gió, giữ khung phom túi căng phồng mềm mại lộng lẫy tự nhiên.
-          </p>
-
-          <p className="italic text-brand-fb/60 bg-brand-bg p-4 rounded-xl border border-brand-primary/5 mt-4">
-            “Nối dệt chữ lộc, lót charm nhãn gỗ dâu tằm thơm bọc mác lụa - Chúng mình chăm sóc túi hộp khảm tay bảo an lộc thêu tặng miễn phí trọn đời cho các Nàng thơ yên len mộc.”
-          </p>
+        {/* Article body — renders the actual stored content, collapsible like a Facebook post for long articles */}
+        <div className="border-b border-brand-primary/5 pb-8">
+          <div
+            className="relative overflow-hidden transition-[max-height] duration-500 ease-in-out"
+            style={{ maxHeight: !isLongArticle || expanded ? 4000 : COLLAPSED_HEIGHT }}
+          >
+            <div className="font-sans text-sm text-brand-fb/80 space-y-5 leading-relaxed text-left">
+              {isHtml ? (
+                <div
+                  className="space-y-4 [&_h3]:font-serif [&_h3]:font-black [&_h3]:text-md [&_h3]:text-brand-fb [&_h3]:pt-2 [&_p]:leading-relaxed"
+                  dangerouslySetInnerHTML={{ __html: rawContent }}
+                />
+              ) : paragraphs.length > 0 ? (
+                paragraphs.map((p, i) => <p key={i}>{p}</p>)
+              ) : (
+                <p className="italic text-brand-fb/50">Bài viết đang được cập nhật nội dung.</p>
+              )}
+            </div>
+            {isLongArticle && !expanded && (
+              <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-brand-card to-transparent pointer-events-none" />
+            )}
+          </div>
+          {isLongArticle && (
+            <button
+              onClick={() => setExpanded((prev) => !prev)}
+              className="mt-3 inline-flex items-center gap-1.5 font-sans text-xs font-bold text-brand-primary hover:opacity-80 transition-opacity cursor-pointer"
+            >
+              {expanded ? (
+                <>
+                  Thu gọn <ChevronUp size={14} />
+                </>
+              ) : (
+                <>
+                  Xem thêm <ChevronDown size={14} />
+                </>
+              )}
+            </button>
+          )}
         </div>
 
         {/* Share toolbar controls */}
         <div className="flex items-center justify-between font-sans text-xs pt-2">
-          <span className="text-[#A89F95]">Ban biên tập dệt: <strong>{BRAND_NAME} Team</strong> 🌸</span>
+          <span className="text-brand-fb/50">
+            Ban biên tập: <strong>{author}</strong> 🌸
+          </span>
           <button
             onClick={() => {
               navigator.clipboard.writeText(window.location.href);
-              alert("Đã sao chép liên kết bài viết tạp chí lãng mạn!");
+              alert("Đã sao chép liên kết bài viết!");
             }}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-primary/5 hover:bg-brand-primary/10 text-brand-primary rounded-md border border-brand-primary/10 cursor-pointer text-[11px] font-bold"
           >
             <Share2 size={12} /> Chia sẻ liên kết
           </button>
         </div>
+      </motion.div>
 
-      </div>
+      {/* Related articles */}
+      {related.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-60px" }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="max-w-3xl mx-auto mt-12"
+        >
+          <h3 className="font-serif font-bold text-lg text-brand-fb mb-5">Đọc thêm</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            {related.map((b) => (
+              <button
+                key={b.id}
+                onClick={() => navigate(`/blog/${b.slug}`)}
+                className="text-left group cursor-pointer bg-brand-card rounded-2xl border border-brand-primary/10 overflow-hidden hover:shadow-lg transition-all duration-300"
+              >
+                <div className="aspect-[4/3] overflow-hidden bg-brand-bg">
+                  <img
+                    src={b.image}
+                    alt={b.title}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                <div className="p-4 space-y-1.5">
+                  <span className="text-[10px] font-sans font-bold text-brand-primary uppercase">
+                    {b.category}
+                  </span>
+                  <p className="font-serif font-semibold text-sm text-brand-fb line-clamp-2 leading-snug group-hover:text-brand-primary transition-colors">
+                    {b.title}
+                  </p>
+                  <span className="inline-flex items-center gap-1 text-[11px] text-brand-fb/50">
+                    {b.date} <ChevronRight size={11} />
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 }

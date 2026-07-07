@@ -153,6 +153,9 @@ export interface Customer {
 
 export interface LoggedOrder {
   id: string;
+  // Set when mirrored to Firestore (users/{userId}/orders/{id}); lets admin
+  // screens address the right subcollection for status updates.
+  userId?: string;
   orderCode: string;
   name: string;
   itemsCount: number;
@@ -227,4 +230,118 @@ export interface TopProduct {
   totalSold: number;
   totalRevenue: number;
   image: string;
+}
+
+// ============================================================
+// STAFF / CONTROL PANEL RBAC DATA MODEL
+// ============================================================
+
+// The 9 fixed staff roles. "admin" is the highest role — nothing outranks it.
+export type StaffRoleId =
+  | "admin"
+  | "store_manager"
+  | "product_inventory_manager"
+  | "order_operations"
+  | "customer_support"
+  | "content_marketing_manager"
+  | "review_moderator"
+  | "finance_reporting"
+  | "auditor";
+
+export type StaffStatus = "invited" | "active" | "suspended" | "disabled";
+
+// Mirrors the intended Firestore doc at staff/{uid}.
+// Client code must never write roleId/status directly — those go through
+// the assignRole / updateStaffStatus Cloud Functions (see functions/src).
+export interface StaffDoc {
+  uid: string;
+  email: string;
+  displayName: string;
+  avatar: string;
+  roleId: StaffRoleId;
+  status: StaffStatus;
+  assignedBy: string;
+  assignedAt: string;
+  lastLoginAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Mirrors the intended Firestore doc at auditLogs/{id}. Append-only.
+export interface AuditLogEntry {
+  id: string;
+  actorId: string;
+  actorName: string;
+  actorRole: StaffRoleId;
+  action: string;
+  module: string;
+  targetId?: string;
+  targetType?: string;
+  before?: unknown;
+  after?: unknown;
+  reason?: string;
+  result: "success" | "failure";
+  createdAt: string;
+}
+
+export type OrderStatusV2 =
+  | "pending_payment"
+  | "payment_confirmed"
+  | "processing"
+  | "ready_to_ship"
+  | "shipping"
+  | "delivered"
+  | "completed"
+  | "cancel_requested"
+  | "cancelled"
+  | "return_requested"
+  | "return_approved"
+  | "returned"
+  | "refund_pending"
+  | "refunded";
+
+export type SupportTicketStatus = "new" | "in_progress" | "waiting_customer" | "resolved" | "closed";
+export type SupportTicketPriority = "low" | "normal" | "high" | "urgent";
+
+export interface SupportTicket {
+  id: string;
+  customerUid: string;
+  subject: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  relatedOrderCode?: string;
+  status: SupportTicketStatus;
+  priority: SupportTicketPriority;
+  assignedTo?: string;
+  lastMessage: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Firestore doc at supportTickets/{id}/messages/{messageId} — two-way chat thread.
+export interface TicketMessage {
+  id: string;
+  ticketId: string;
+  senderRole: "customer" | "admin";
+  senderName: string;
+  body: string;
+  createdAt: string;
+}
+
+export type RefundRequestStatus = "requested" | "reviewing" | "approved" | "rejected" | "processing" | "completed";
+
+export interface RefundRequest {
+  id: string;
+  orderId: string;
+  orderCode: string;
+  customerName: string;
+  amount: number;
+  reason: string;
+  status: RefundRequestStatus;
+  requestedBy: string;
+  createdAt: string;
+  processedBy?: string;
+  processedAt?: string;
+  idempotencyKey: string;
 }

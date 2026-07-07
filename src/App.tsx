@@ -20,12 +20,12 @@ import CheckoutPage from "./pages/CheckoutPage";
 import OrdersPage from "./pages/OrdersPage";
 import ReturnsPage from "./pages/ReturnsPage";
 import ContactPage from "./pages/ContactPage";
+import AboutPage from "./pages/AboutPage";
 import BlogPage from "./pages/BlogPage";
 import BlogDetailPage from "./pages/BlogDetailPage";
 import AccountPage from "./pages/AccountPage";
 import LoginPage from "./pages/LoginPage";
 import UnauthorizedPage from "./pages/UnauthorizedPage";
-import AdminLayout from "./components/AdminLayout";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AdminProductsPage from "./pages/AdminProductsPage";
 import AdminInventoryPage from "./pages/AdminInventoryPage";
@@ -40,67 +40,112 @@ import AdminSettingsPage from "./pages/AdminSettingsPage";
 import TrackOrderPage from "./pages/TrackOrderPage";
 import OrderSuccessPage from "./pages/OrderSuccessPage";
 
-const ADMIN_ACCESS_ROLES = [
-  "admin",
-  "store_owner",
-  "marketing_staff",
-  "inventory_staff",
-  "order_staff",
-  "content_staff"
-];
+// Control Panel (staff/admin) — separate app shell, own auth flow, own guards
+import AdminShell from "./components/admin/AdminShell";
+import AdminRouteGuard from "./components/admin/AdminRouteGuard";
+import RequirePermission from "./components/admin/RequirePermission";
+import AdminLoginPage from "./pages/admin/AdminLoginPage";
+import AdminUnauthorizedPage from "./pages/admin/AdminUnauthorizedPage";
+import OperationsDashboardPage from "./pages/admin/OperationsDashboardPage";
+import ProductsDashboardPage from "./pages/admin/ProductsDashboardPage";
+import OrdersDashboardPage from "./pages/admin/OrdersDashboardPage";
+import SupportDashboardPage from "./pages/admin/SupportDashboardPage";
+import MarketingDashboardPage from "./pages/admin/MarketingDashboardPage";
+import ReviewsDashboardPage from "./pages/admin/ReviewsDashboardPage";
+import FinanceDashboardPage from "./pages/admin/FinanceDashboardPage";
+import AuditDashboardPage from "./pages/admin/AuditDashboardPage";
+import AdminCategoriesPage from "./pages/admin/AdminCategoriesPage";
+import AdminReturnsPage from "./pages/admin/AdminReturnsPage";
+import AdminTicketsPage from "./pages/admin/AdminTicketsPage";
+import AdminCouponsPage from "./pages/admin/AdminCouponsPage";
+import StaffManagementPage from "./pages/admin/StaffManagementPage";
+import RoleAssignmentPage from "./pages/admin/RoleAssignmentPage";
+import AuditLogPage from "./pages/admin/AuditLogPage";
+import AdminMigrationPage from "./pages/admin/AdminMigrationPage";
 
 export default function App() {
   const location = useLocation();
+  // Control Panel (staff/admin) uses its own app shell (AdminShell) —
+  // never render the storefront Header/Footer/Chatbot/intro overlay there.
+  const isControlPanelRoute = location.pathname.startsWith("/admin");
 
   // Scroll back to page top on each route transition
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
   }, [location.pathname]);
 
+  if (isControlPanelRoute) {
+    return (
+      <div className="min-h-screen">
+        <Routes>
+          <Route path="/admin/login" element={<AdminLoginPage />} />
+          <Route path="/admin/unauthorized" element={<AdminUnauthorizedPage />} />
+          <Route path="/admin" element={<AdminRouteGuard><AdminShell /></AdminRouteGuard>}>
+            <Route index element={<RequirePermission permission="dashboard.view"><AdminDashboardPage /></RequirePermission>} />
+            <Route path="dashboard" element={<RequirePermission permission="dashboard.view"><AdminDashboardPage /></RequirePermission>} />
+            <Route path="operations" element={<RequirePermission permission="dashboard.view"><OperationsDashboardPage /></RequirePermission>} />
+            <Route path="products-dashboard" element={<RequirePermission permission="dashboard.view"><ProductsDashboardPage /></RequirePermission>} />
+            <Route path="orders-dashboard" element={<RequirePermission permission="dashboard.view"><OrdersDashboardPage /></RequirePermission>} />
+            <Route path="support-dashboard" element={<RequirePermission permission="dashboard.view"><SupportDashboardPage /></RequirePermission>} />
+            <Route path="marketing-dashboard" element={<RequirePermission permission="dashboard.view"><MarketingDashboardPage /></RequirePermission>} />
+            <Route path="reviews-dashboard" element={<RequirePermission permission="dashboard.view"><ReviewsDashboardPage /></RequirePermission>} />
+            <Route path="finance-dashboard" element={<RequirePermission permission="dashboard.view"><FinanceDashboardPage /></RequirePermission>} />
+            <Route path="audit-dashboard" element={<RequirePermission permission="audit.view"><AuditDashboardPage /></RequirePermission>} />
+            <Route path="products" element={<RequirePermission permission="products.view"><AdminProductsPage /></RequirePermission>} />
+            <Route path="categories" element={<RequirePermission permission="categories.view"><AdminCategoriesPage /></RequirePermission>} />
+            <Route path="inventory" element={<RequirePermission permission="inventory.view"><AdminInventoryPage /></RequirePermission>} />
+            <Route path="orders" element={<RequirePermission permission="orders.view"><AdminOrdersPage /></RequirePermission>} />
+            <Route path="returns" element={<RequirePermission permission="returns.view"><AdminReturnsPage /></RequirePermission>} />
+            <Route path="revenue" element={<RequirePermission permission="reports.view"><AdminRevenuePage /></RequirePermission>} />
+            <Route path="customers" element={<RequirePermission permission="customers.view"><AdminCustomersPage /></RequirePermission>} />
+            <Route path="notifications" element={<RequirePermission permission="notifications.view"><AdminNotificationsPage /></RequirePermission>} />
+            <Route path="reviews-feedback" element={<RequirePermission permission="reviews.view"><AdminReviewsFeedbackPage /></RequirePermission>} />
+            <Route path="tickets" element={<RequirePermission permission="feedback.view"><AdminTicketsPage /></RequirePermission>} />
+            <Route path="coupons" element={<RequirePermission permission="coupons.view"><AdminCouponsPage /></RequirePermission>} />
+            <Route path="blog" element={<RequirePermission permission="blog.view"><AdminBlogPage /></RequirePermission>} />
+            <Route path="docs" element={<RequirePermission permission="settings.view"><AdminDocsPage /></RequirePermission>} />
+            <Route path="staff" element={<RequirePermission permission="staff.view"><StaffManagementPage /></RequirePermission>} />
+            <Route path="roles" element={<RequirePermission permission="roles.view"><RoleAssignmentPage /></RequirePermission>} />
+            <Route path="audit" element={<RequirePermission permission="audit.view"><AuditLogPage /></RequirePermission>} />
+            <Route path="migration" element={<RequirePermission permission="settings.view"><AdminMigrationPage /></RequirePermission>} />
+            <Route path="settings" element={<RequirePermission permission="settings.view"><AdminSettingsPage /></RequirePermission>} />
+          </Route>
+        </Routes>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-brand-bg text-brand-fb font-sans antialiased min-h-screen flex flex-col justify-between selection:bg-brand-primary/20">
-      
+
       {/* Intro visual curtain blocker */}
       <AuthIntroOverlay />
-      
+
       {/* Dynamic responsive sticky navigation bar */}
       <Header />
 
       {/* Primary site content routing block */}
       <main className="flex-grow">
         <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/products" element={<ProductsPage />} />
-          <Route path="/products/:id" element={<ProductDetailPage />} />
-          <Route path="/product/:id" element={<ProductDetailPage />} />
+          <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+          <Route path="/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
+          <Route path="/products/:id" element={<ProtectedRoute><ProductDetailPage /></ProtectedRoute>} />
+          <Route path="/product/:id" element={<ProtectedRoute><ProductDetailPage /></ProtectedRoute>} />
           <Route path="/favorites" element={<ProtectedRoute><FavoritesPage /></ProtectedRoute>} />
-          <Route path="/cart" element={<CartPage />} />
+          <Route path="/cart" element={<ProtectedRoute><CartPage /></ProtectedRoute>} />
           <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
           <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
           <Route path="/returns" element={<ProtectedRoute><ReturnsPage /></ProtectedRoute>} />
-          <Route path="/contact" element={<ContactPage />} />
-          <Route path="/blog" element={<BlogPage />} />
-          <Route path="/blog/:slug" element={<BlogDetailPage />} />
+          <Route path="/contact" element={<ProtectedRoute><ContactPage /></ProtectedRoute>} />
+          <Route path="/about" element={<ProtectedRoute><AboutPage /></ProtectedRoute>} />
+          <Route path="/gioi-thieu" element={<ProtectedRoute><AboutPage /></ProtectedRoute>} />
+          <Route path="/blog" element={<ProtectedRoute><BlogPage /></ProtectedRoute>} />
+          <Route path="/blog/:slug" element={<ProtectedRoute><BlogDetailPage /></ProtectedRoute>} />
           <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/track-order" element={<TrackOrderPage />} />
-          <Route path="/order-success" element={<OrderSuccessPage />} />
+          <Route path="/track-order" element={<ProtectedRoute><TrackOrderPage /></ProtectedRoute>} />
+          <Route path="/order-success" element={<ProtectedRoute><OrderSuccessPage /></ProtectedRoute>} />
           <Route path="/unauthorized" element={<UnauthorizedPage />} />
-          <Route path="/admin" element={<ProtectedRoute requiredRoles={ADMIN_ACCESS_ROLES}><AdminLayout /></ProtectedRoute>}>
-            <Route index element={<AdminDashboardPage />} />
-            <Route path="dashboard" element={<AdminDashboardPage />} />
-            <Route path="products" element={<AdminProductsPage />} />
-            <Route path="inventory" element={<AdminInventoryPage />} />
-            <Route path="orders" element={<AdminOrdersPage />} />
-            <Route path="revenue" element={<AdminRevenuePage />} />
-            <Route path="customers" element={<AdminCustomersPage />} />
-            <Route path="notifications" element={<AdminNotificationsPage />} />
-            <Route path="reviews-feedback" element={<AdminReviewsFeedbackPage />} />
-            <Route path="blog" element={<AdminBlogPage />} />
-            <Route path="docs" element={<AdminDocsPage />} />
-            <Route path="settings" element={<AdminSettingsPage />} />
-          </Route>
-          <Route path="/admin-dashboard" element={<ProtectedRoute requiredRoles={ADMIN_ACCESS_ROLES}><AdminDashboardPage /></ProtectedRoute>} />
         </Routes>
       </main>
 
@@ -150,7 +195,7 @@ export default function App() {
               </li>
               <li className="flex items-start gap-3 text-white/60">
                 <PhoneIcon className="w-4 h-4 min-w-[16px] min-h-[16px] flex-shrink-0 text-[#A47E5C] mt-0.5" />
-                <span>0912 443 1102</span>
+                <span>0966 092 483</span>
               </li>
               <li className="flex items-start gap-3 text-white/60">
                 <MapPinIcon className="w-4 h-4 min-w-[16px] min-h-[16px] flex-shrink-0 text-[#A47E5C] mt-0.5" />

@@ -1,4 +1,6 @@
 import { Product } from "../types";
+import chuaLanhTamHonImg from "../assets/images/chualanhtamhon.png";
+import hangTangWImg from "../assets/images/hangtangw.png";
 
 // Roles defined in specifications
 export type UserRole = 
@@ -109,7 +111,7 @@ export const demoUsers: DemoUser[] = [
   {
     id: "user_admin",
     name: "Admin Tiệm Len Nhỏ",
-    email: "admin@tiemlennho.vn",
+    email: "admin@lenhandmade.vn",
     password: "123456",
     role: "admin",
     status: "active",
@@ -721,7 +723,7 @@ export const marketingArticles: MarketingArticle[] = [
     id: "mar_1",
     title: "Hành Trình Chữa Lành Tâm Hồn Qua Từng Sợi Chỉ Len Mộc Mạc",
     slug: "chua-lanh-qua-soi-len-handmade",
-    image: "https://images.unsplash.com/photo-1596436889106-be35e843f974?auto=format&fit=crop&q=80&w=600",
+    image: chuaLanhTamHonImg,
     description: "Vì sao môn nghệ thuật móc kim dệt len lại trở thành trào lưu chánh niệm giúp xua tan áp lực lo âu đô thị đầy mỹ thuật lý tính.",
     content: `<h3>Nghệ thuật khâu móc và Sức mạnh bình ổn tinh thần</h3>
               <p>Mỗi đường kim lượn qua nốt chỉ là một khoảnh khắc bạn hoàn toàn tập trung vào thực tại. Nhiều nàng thơ chia sẻ rằng họ tìm thấy nhịp thở điều hòa sâu sắc khi đan từng sợi tơ dệt Tulip nổi.</p>
@@ -737,9 +739,9 @@ export const marketingArticles: MarketingArticle[] = [
   },
   {
     id: "mar_2",
-    title: "Chữ Tín Gửi Trọn Trong Hộp Quà Tặng Nút Thắt Gấm Handmade",
+    title: "HÀNG TẶNG XIN VUI LÒNG KHÔNG TRẢ LẠI",
     slug: "chu-tin-trong-hop-qua-tang-handmade",
-    image: "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?auto=format&fit=crop&q=80&w=600",
+    image: hangTangWImg,
     description: "Đằng sau ruy băng đỏ thắm dập rêu mộc mạc là chiếc gối nhồi bông gòn micro-elastic cao cấp nhất cho bé yêu học đường.",
     content: `<h3>Chiếc gấu bông bảo an từ vật lụa organic</h3>
               <p>Chúng mình từ chối sợi tổng hợp tái chế độc hại. Mọi Amigurumi nhồi thú bông thỏ Bunny đều móc bằng tơ Cotton dẻo dai đanh bóng nhập khẩu nguyên mác.</p>

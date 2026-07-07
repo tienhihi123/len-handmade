@@ -14,22 +14,22 @@ export default function BrandStory() {
     {
       icon: <Hand className="w-6 h-6 text-brand-primary" />,
       title: "Thủ công tỉ mỉ",
-      desc: "Từng đường kim dệt hoa, từng dốc mắc sợi đều dệt tay kỳ công bởi nghệ nhân có thâm niên để đảm bảo tuyệt tác bền bỉ khít khao."
+      desc: "Mỗi sản phẩm đều được đan móc tay hoàn toàn, từng mũi kim mang đậm dấu ấn cá nhân."
     },
     {
       icon: <Cloud className="w-6 h-6 text-brand-primary" />,
       title: "Chất liệu mềm mại",
-      desc: "Tuyển chọn sợi bông sữa Milk Cotton Nhật tơ tằm mềm mại hảo hạng, lành tính tuyệt đối cho làn da mẫn cảm nhất."
+      desc: "Sợi len cao cấp Milk Cotton, mềm mại, an toàn cho mọi làn da, đặc biệt thích hợp cho da nhạy cảm."
     },
     {
       icon: <Sparkles className="w-6 h-6 text-brand-primary" />,
       title: "Thiết kế độc đáo",
-      desc: "Kiểu dáng Boho phóng khoáng, họa tiết bông phập nổi đan kết cấu phom gỗ tối giản, thời thượng thích nghi nhiều phong cách đa dạng."
+      desc: "Phong cách Boho ấm áp, họa tiết độc đáo, dễ phối đồ từ casual đến vintage."
     },
     {
       icon: <Gift className="w-6 h-6 text-brand-primary" />,
       title: "Đóng gói yêu thương",
-      desc: "Được sấy khô cùng tơ thơm nhài khô hữu cơ tự nhiên, bọc lụa mềm bọc lót gỗ, đóng hộp quà Kraft trang nhã trọn vẹn sự chân quý."
+      desc: "Sản phẩm được gói cẩn thận, tặng kèm hoa len nhỏ — món quà ý nghĩa cho người thân."
     }
   ];
 
@@ -46,16 +46,16 @@ export default function BrandStory() {
             {...fadeUp(0.1)}
             className="text-xs font-semibold uppercase tracking-widest text-brand-primary block mb-2"
           >
-            Câu Chuyện Sợi Chỉ ✦ Trái Tim Dệt Hoa
+            ✦ Tình Yêu Từ Từng Mũi Đan ✦
           </motion.span>
           <motion.h2
             {...fadeUp(0.25)}
             className="font-serif font-bold text-3xl sm:text-4xl text-brand-fb mb-5"
           >
-            Được tạo nên từ sự tỉ mỉ
+            Làm bằng tay, dệt từ yêu thương
           </motion.h2>
           <p className="font-sans text-brand-fb/70 text-sm md:text-md leading-relaxed">
-            Mỗi sản phẩm sợi len dệt tại <strong className="text-brand-primary font-medium">{BRAND_NAME}</strong> không chỉ đơn thuần là phụ kiện thời trang, mà là một tác phẩm mang theo nhịp đập, thời gian, và sự chân thành tuyệt đối. Chúng tôi tin rằng cái chạm nhẹ ấm áp của những dải len mềm sẽ sưởi ấm tâm hồn bạn giữa nhịp sống đô hội tấp nập hối hả.
+            Mỗi sản phẩm tại <strong className="text-brand-primary font-medium">{BRAND_NAME}</strong> không chỉ là phụ kiện, mà là một tác phẩm handmade được tạo ra từ tình yêu nghề và sự tỉ mỉ trong từng chi tiết.
           </p>
         </div>
 
@@ -83,7 +83,7 @@ export default function BrandStory() {
         </div>
 
         {/* Brand visual layout block - Editorial split text/photo concept */}
-        <div className="mt-20 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center bg-white/60 rounded-[36px] p-6 sm:p-10 border border-brand-primary/5 shadow-inner">
+        <div className="mt-20 grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-center bg-white/60 rounded-[36px] p-6 sm:p-10 border border-brand-primary/5 shadow-inner">
           <div className="lg:col-span-5 flex justify-center items-center select-none relative">
             {/* Background card layer for depth */}
             <div className="absolute -inset-2 rounded-[32px] bg-[#CEAF75]/10 border border-[#CEAF75]/20 shadow-lg" />
@@ -102,22 +102,22 @@ export default function BrandStory() {
               ></iframe>
             </div>
           </div>
-          <div className="lg:col-span-7 flex flex-col justify-center space-y-4">
+          <div className="lg:col-span-7 flex flex-col justify-center space-y-5 lg:pl-12">
             <span className="text-[10px] font-mono font-semibold text-brand-primary bg-brand-primary/10 px-3 py-1 rounded-full self-start">
-              Dành Cho Khóa Luận Tốt Nghiệp Xuất Sắc 🏆
+              Dự Án Tốt Nghiệp 🏆
             </span>
-            <h3 className="font-serif font-bold text-xl sm:text-2xl text-brand-fb">
-              Mỗi Kim Dệt Đều Chứa Đựng Bản Ngã Riêng
+            <h3 className="font-serif font-bold text-xl sm:text-2xl lg:text-3xl text-brand-fb leading-tight">
+              Mỗi sản phẩm mang câu chuyện riêng
             </h3>
-            <p className="font-sans text-xs sm:text-sm text-brand-fb/70 leading-relaxed">
-              Bạn có biết để hoàn thành mẫu túi hoa hồng nổi như <strong>Túi Len Premium</strong>, nghệ nhân dệt độc bản phải thức dệt ròng rã suốt 16 tiếng đồng hồ dệt chéo mệt mỏi? Chúng tôi không mưu cầu sản xuất hàng loạt đại trà, chúng tôi dệt vì nghệ thuật sáng tạo và gìn giữ vẻ đẹp mộc mạc thủ công mỹ nghệ đương đại của phụ nữ Việt.
+            <p className="font-sans text-sm sm:text-base text-brand-fb/70 leading-relaxed max-w-2xl">
+              Để hoàn thành một chiếc <strong>Túi Len Premium</strong> với họa tiết hoa nổi, mình thường phải đan móc liên tục từ 12-16 tiếng. Không phải sản xuất hàng loạt, mình chọn làm thủ công để giữ được nét đẹp và giá trị nghệ thuật trong từng sản phẩm.
             </p>
-            <div className="flex flex-wrap gap-4 pt-1">
-              <span className="flex items-center gap-1.5 text-xs font-sans text-brand-fb/80">
-                <Award className="w-4 h-4 text-brand-primary" /> Thiết kế độc bản
+            <div className="flex flex-wrap gap-4 pt-2">
+              <span className="flex items-center gap-2 text-sm font-sans text-brand-fb/80">
+                <Award className="w-5 h-5 text-brand-primary" /> Thiết kế độc quyền
               </span>
-              <span className="flex items-center gap-1.5 text-xs font-sans text-brand-fb/80">
-                <Heart className="w-4 h-4 text-brand-primary" /> Hỗ trợ sinh kế thợ dệt vùng cao
+              <span className="flex items-center gap-2 text-sm font-sans text-brand-fb/80">
+                <Heart className="w-5 h-5 text-brand-primary" /> 100% handmade Việt Nam
               </span>
             </div>
           </div>

@@ -13,7 +13,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: str
   "Chờ xác nhận":      { label: "Chờ xác nhận",       color: "text-blue-700",   bgColor: "bg-blue-50 border-blue-200",    icon: Clock,         step: 1, percent: 15 },
   "Đã xác nhận":       { label: "Đã xác nhận",         color: "text-indigo-700", bgColor: "bg-indigo-50 border-indigo-200", icon: CheckCircle2,  step: 2, percent: 35 },
   "Đang chuẩn bị hàng":{ label: "Đang chuẩn bị hàng", color: "text-amber-700",  bgColor: "bg-amber-50 border-amber-200",  icon: Package,       step: 3, percent: 55 },
-  "Đang giao":         { label: "Đang giao",            color: "text-purple-700", bgColor: "bg-purple-50 border-purple-200",icon: Truck,         step: 4, percent: 78 },
+  "Đang giao":         { label: "Đang giao",            color: "text-cyan-700",   bgColor: "ocean-wave-neon",                icon: Truck,         step: 4, percent: 78 },
   "Hoàn tất":          { label: "Hoàn tất",             color: "text-green-700",  bgColor: "bg-green-50 border-green-200",  icon: CheckCircle2,  step: 5, percent: 100 },
   "Đã hủy":            { label: "Đã hủy",               color: "text-red-700",   bgColor: "bg-red-50 border-red-200",      icon: XCircle,       step: 0, percent: 0   }
 };
@@ -185,8 +185,86 @@ export default function TrackOrderPage() {
                 <div className="bg-white rounded-3xl border border-brand-primary/15 shadow-sm overflow-hidden">
 
                   {/* Order Header */}
-                  <div className={`p-6 ${config.bgColor} border-b`}>
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className={`relative p-6 ${order.status === "Đang giao" ? "overflow-hidden" : config.bgColor} border-b`}>
+                    {/* Ocean Wave Background for "Đang giao" status */}
+                    {order.status === "Đang giao" && (
+                      <>
+                        {/* Animated ocean wave layers */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-cyan-50 via-teal-50 to-blue-50">
+                          <motion.div
+                            className="absolute inset-0 opacity-40"
+                            style={{
+                              backgroundImage: `
+                                radial-gradient(circle at 20% 50%, rgba(6, 182, 212, 0.15) 0%, transparent 50%),
+                                radial-gradient(circle at 80% 80%, rgba(20, 184, 166, 0.15) 0%, transparent 50%)
+                              `,
+                            }}
+                            animate={{
+                              backgroundPosition: ['0% 0%', '100% 100%'],
+                            }}
+                            transition={{
+                              duration: 8,
+                              repeat: Infinity,
+                              repeatType: 'reverse',
+                              ease: 'easeInOut',
+                            }}
+                          />
+
+                          {/* Wave layer 1 */}
+                          <motion.div
+                            className="absolute bottom-0 left-0 right-0 h-24 opacity-30"
+                            style={{
+                              background: 'linear-gradient(to top, rgba(6, 182, 212, 0.2), transparent)',
+                            }}
+                            animate={{
+                              y: [0, -8, 0],
+                            }}
+                            transition={{
+                              duration: 3,
+                              repeat: Infinity,
+                              ease: 'easeInOut',
+                            }}
+                          />
+
+                          {/* Wave layer 2 */}
+                          <motion.div
+                            className="absolute bottom-0 left-0 right-0 h-20 opacity-20"
+                            style={{
+                              background: 'linear-gradient(to top, rgba(20, 184, 166, 0.25), transparent)',
+                            }}
+                            animate={{
+                              y: [0, -12, 0],
+                            }}
+                            transition={{
+                              duration: 4,
+                              repeat: Infinity,
+                              ease: 'easeInOut',
+                              delay: 0.5,
+                            }}
+                          />
+
+                          {/* Neon glow accent */}
+                          <motion.div
+                            className="absolute top-0 right-0 w-32 h-32 rounded-full"
+                            style={{
+                              background: 'radial-gradient(circle, rgba(34, 211, 238, 0.3) 0%, transparent 70%)',
+                              filter: 'blur(40px)',
+                            }}
+                            animate={{
+                              scale: [1, 1.2, 1],
+                              opacity: [0.4, 0.6, 0.4],
+                            }}
+                            transition={{
+                              duration: 5,
+                              repeat: Infinity,
+                              ease: 'easeInOut',
+                            }}
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-xs font-bold text-brand-fb/60">
@@ -201,8 +279,12 @@ export default function TrackOrderPage() {
                           Đặt ngày {new Date(order.time).toLocaleDateString("vi-VN", { day: "2-digit", month: "long", year: "numeric" })}
                         </p>
                       </div>
-                      <div className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold text-sm border ${config.bgColor} ${config.color} self-start sm:self-center`}>
-                        <config.icon size={15} />
+                      <div className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold text-sm border ${
+                        order.status === "Đang giao"
+                          ? "bg-gradient-to-r from-cyan-100/80 to-teal-100/80 border-cyan-300 text-cyan-800 shadow-lg shadow-cyan-200/50"
+                          : `${config.bgColor} ${config.color}`
+                      } self-start sm:self-center`}>
+                        <config.icon size={15} className={order.status === "Đang giao" ? "drop-shadow-sm" : ""} />
                         {order.status}
                       </div>
                     </div>
@@ -353,11 +435,11 @@ export default function TrackOrderPage() {
                       Cần hỗ trợ? Liên hệ ngay với chúng mình 💙
                     </p>
                     <a
-                      href="tel:0912443110"
+                      href="tel:0966092483"
                       className="bg-brand-primary text-white text-xs font-bold px-5 py-2 rounded-full flex items-center gap-1.5 hover:bg-brand-primary-light transition-colors shadow-sm"
                     >
                       <Phone size={13} />
-                      Gọi Shop: 0912 443 1102
+                      Gọi Shop: 0966 092 483
                     </a>
                   </div>
                 </div>

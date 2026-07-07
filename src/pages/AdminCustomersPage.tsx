@@ -30,9 +30,9 @@ export default function AdminCustomersPage() {
             <p className="text-sm text-brand-fb/60">Tìm theo tên, số điện thoại hoặc email.</p>
           </div>
           <div className="relative w-full lg:max-w-md">
-            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-fb/50" />
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-fb/50" />
             <input
-              className="w-full rounded-3xl border border-brand-primary/15 bg-white pl-12 pr-4 py-3 text-sm text-brand-fb outline-none focus:border-brand-primary"
+              className="w-full rounded-3xl border border-brand-primary/15 bg-white pl-10 pr-4 py-3 text-sm text-brand-fb outline-none focus:border-brand-primary"
               placeholder="Tìm khách hàng..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}

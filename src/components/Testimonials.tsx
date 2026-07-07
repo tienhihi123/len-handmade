@@ -19,15 +19,13 @@ interface Testimonial {
 const TESTIMONIALS: Testimonial[] = [
   {
     id: "peek",
-    name: "",
-    role: "",
+    name: "Review nóng hổi 🔥",
+    role: "Trend setter",
     avatar: "",
-    initials: "",
-    bgColor: "#412C20",
-    text: "",
-    isPeek: true,
-    garmentImage:
-      "https://images.unsplash.com/photo-1602810316693-3667c854239a?w=400&q=80&auto=format&fit=crop",
+    initials: "⭐",
+    bgColor: "#CEAF75",
+    text: "Omg túi này xịn quá đi mất! Mình order về tặng bạn thân sinh nhật, mở hộp ra ai cũng khen đẹp và sang. Chất len mềm mịn, đường kim tỉ mỉ từng chi tiết. Thật sự worth every penny luôn! 10/10 sẽ mua thêm 🧶✨",
+    isPeek: false,
   },
   {
     id: "t1",
@@ -97,6 +95,7 @@ export default function Testimonials() {
   const [activeIndex, setActiveIndex] = useState(1);
   const [isDragging, setIsDragging] = useState(false);
   const [isHoveringSlider, setIsHoveringSlider] = useState(false);
+  const [dragStart, setDragStart] = useState<number | null>(null);
 
   // Map slider value to active card (0–3)
   const handleSliderChange = useCallback(
@@ -105,6 +104,36 @@ export default function Testimonials() {
     },
     []
   );
+
+  // Drag-to-slide on desktop with boundary clamping
+  const handleDragStart = useCallback((e: any) => {
+    setDragStart(e.clientX);
+    setIsDragging(true);
+  }, []);
+
+  const handleDragMove = useCallback(
+    (e: any) => {
+      if (dragStart === null) return;
+      const delta = dragStart - e.clientX;
+      const threshold = 80;
+      if (Math.abs(delta) > threshold) {
+        setActiveIndex((prev: number) => {
+          let next = prev;
+          if (delta > 0) next = prev + 1;
+          else if (delta < 0) next = prev - 1;
+          // Clamp to valid range
+          return Math.max(0, Math.min(TESTIMONIALS.length - 1, next));
+        });
+        setDragStart(e.clientX);
+      }
+    },
+    [dragStart]
+  );
+
+  const handleDragEnd = useCallback(() => {
+    setDragStart(null);
+    setIsDragging(false);
+  }, []);
 
   // Card layout configuration
   const CARD_W = 286;
@@ -136,8 +165,12 @@ export default function Testimonials() {
 
         {/* ── Card deck ── */}
         <div
-          className="relative mx-auto select-none"
+          className="relative mx-auto select-none cursor-grab active:cursor-grabbing overflow-hidden"
           style={{ maxWidth: DECK_W + 80, height: 380 }}
+          onMouseDown={handleDragStart}
+          onMouseMove={handleDragMove}
+          onMouseUp={handleDragEnd}
+          onMouseLeave={handleDragEnd}
         >
           <motion.div
             className="absolute flex items-start"
@@ -148,6 +181,12 @@ export default function Testimonials() {
               const dist = Math.abs(i - activeIndex);
               const isActive = i === activeIndex;
 
+              // Rotation logic: cards tilt away from center
+              let rotate = 0;
+              if (i < activeIndex) rotate = -6; // Left card tilts left
+              else if (i > activeIndex) rotate = 6; // Right card tilts right
+              // Active card: rotate = 0 (straight)
+
               return (
                 <motion.div
                   key={t.id}
@@ -155,10 +194,18 @@ export default function Testimonials() {
                   animate={{
                     x: i * GAP,
                     scale: isActive ? 1 : dist === 1 ? 0.92 : 0.86,
+                    rotate: rotate,
                     zIndex: 20 - dist * 5,
                     opacity: t.isPeek && i < activeIndex ? 0.65 : 1,
                   }}
-                  transition={{ type: "spring", stiffness: 300, damping: 28, mass: 0.9 }}
+                  transition={{
+                    type: "spring",
+                    stiffness: 300,
+                    damping: 28,
+                    mass: 0.9,
+                    // Extra spring for rotation when becoming active
+                    rotate: { type: "spring", stiffness: 350, damping: 25 }
+                  }}
                   style={{ width: CARD_W }}
                   className="absolute top-0 shrink-0 overflow-hidden"
                 >

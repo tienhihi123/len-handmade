@@ -9,9 +9,9 @@ import { mirrorOrderToFirestore } from "../lib/firestoreOrders";
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const { 
-    cart, setCart, ordersList, setOrdersList, coinsWallet, setCoinsWallet, 
-    addActivity, currentUser 
+  const {
+    cart, setCart, ordersList, setOrdersList, coinsWallet, setCoinsWallet,
+    addActivity, currentUser, activeCoupons, setActiveCoupons
   } = useApp();
 
   // Redirect if cart is empty
@@ -49,24 +49,71 @@ export default function CheckoutPage() {
 
   const cartTotal = calculateCartTotal(cart);
 
-  // Coupon Rules logic (WELCOME20 = 20% off up to 100k)
+  const appliedCoupon = activeCoupons.find((c) => c.code === appliedCouponCode);
+
+  // Coupon Rules logic — checks the built-in WELCOME20 promo first, then any
+  // admin-created coupon from /admin/coupons (activeCoupons in AppContext).
   const handleApplyCoupon = (e: React.FormEvent) => {
     e.preventDefault();
     setCouponError("");
     setCouponSuccess("");
 
-    if (couponInput.toUpperCase().trim() === "WELCOME20") {
+    const normalizedInput = couponInput.toUpperCase().trim();
+    if (!normalizedInput) return;
+
+    if (normalizedInput === "WELCOME20") {
       setAppliedCouponCode("WELCOME20");
       setCouponSuccess("Áp dụng thành công mã WELCOME20: Giảm 20% lên tới 100.000đ!");
-    } else {
-      setCouponError("Mã giảm giá không chính xác hoặc đã quá hạn tuyển.");
+      return;
     }
+
+    const match = activeCoupons.find((c) => c.code.toUpperCase() === normalizedInput);
+    if (!match) {
+      setCouponError("Mã giảm giá không tồn tại. Vui lòng kiểm tra lại.");
+      return;
+    }
+    if (match.status !== "Đang hoạt động") {
+      setCouponError("Mã giảm giá này hiện không còn hoạt động.");
+      return;
+    }
+    if (match.endDate && new Date(match.endDate).getTime() < Date.now()) {
+      setCouponError("Mã giảm giá đã hết hạn sử dụng.");
+      return;
+    }
+    if (match.usageLimit > 0 && match.usedCount >= match.usageLimit) {
+      setCouponError("Mã giảm giá đã hết lượt sử dụng.");
+      return;
+    }
+    if (cartTotal < match.minOrderValue) {
+      setCouponError(`Đơn hàng cần tối thiểu ${match.minOrderValue.toLocaleString("vi-VN")}đ để áp dụng mã này.`);
+      return;
+    }
+
+    setAppliedCouponCode(match.code);
+    const previewDiscount =
+      match.type === "percentage"
+        ? Math.min(Math.round((cartTotal * match.value) / 100), match.maxDiscount || Infinity)
+        : match.type === "fixed"
+        ? Math.min(match.value, cartTotal)
+        : 0;
+    setCouponSuccess(
+      match.type === "free_shipping"
+        ? `Áp dụng thành công mã ${match.code}: Miễn phí vận chuyển!`
+        : `Áp dụng thành công mã ${match.code}: Giảm ${previewDiscount.toLocaleString("vi-VN")}đ!`
+    );
   };
 
   // Math totals block
-  const discountVal = appliedCouponCode === "WELCOME20" 
-    ? Math.min(Math.round(cartTotal * 0.2), 100000) 
-    : 0;
+  const discountVal =
+    appliedCouponCode === "WELCOME20"
+      ? Math.min(Math.round(cartTotal * 0.2), 100000)
+      : appliedCoupon
+      ? appliedCoupon.type === "percentage"
+        ? Math.min(Math.round((cartTotal * appliedCoupon.value) / 100), appliedCoupon.maxDiscount || Infinity)
+        : appliedCoupon.type === "fixed"
+        ? Math.min(appliedCoupon.value, cartTotal)
+        : 0
+      : 0;
 
   const maxCoinsApplied = useCoins ? Math.min(coinsWallet, cartTotal - discountVal) : 0;
   const finalBillTotal = Math.max(0, cartTotal - discountVal - maxCoinsApplied);
@@ -123,6 +170,11 @@ export default function CheckoutPage() {
     // Deduct coins from balance if applied
     if (maxCoinsApplied > 0) {
       setCoinsWallet(prev => prev - maxCoinsApplied);
+    }
+
+    // Track usage on the applied admin-created coupon (WELCOME20 is unlimited built-in)
+    if (appliedCouponCode && appliedCouponCode !== "WELCOME20") {
+      setActiveCoupons(prev => prev.map(c => c.code === appliedCouponCode ? { ...c, usedCount: c.usedCount + 1 } : c));
     }
 
     addActivity("Đăng ký đơn hàng thủ công", tempOrderId, namesRep, "order");
@@ -476,7 +528,7 @@ export default function CheckoutPage() {
                 </div>
                 {discountVal > 0 && (
                   <div className="flex justify-between text-green-600 font-semibold">
-                    <span>Mã WELCOME20 applied:</span>
+                    <span>Mã {appliedCouponCode} đã áp dụng:</span>
                     <span className="font-mono">-{discountVal.toLocaleString("vi-VN")}đ</span>
                   </div>
                 )}

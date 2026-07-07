@@ -20,7 +20,7 @@ export default function ProductDetailPage() {
   const location = useLocation();
   const {
     productsList, reviewsList, setReviewsList, trackView,
-    wishlist, setWishlist, viewStats, cart, setCart, addActivity, currentUser
+    wishlist, setWishlist, viewStats, cart, setCart, addActivity, currentUser, productVariants
   } = useApp();
 
   // Find the current product
@@ -134,6 +134,24 @@ export default function ProductDetailPage() {
   const stat = viewStats?.find(s => s.productId === product.id);
   const totalProductViews = stat ? stat.totalViews : 0;
 
+  // Resolve live stock for the selected variant from admin-adjusted inventory (falls back to the product's overall stock)
+  const matchedVariant = productVariants.find(v =>
+    v.productId === product.id &&
+    (!selectedColor || v.color === selectedColor) &&
+    (!selectedMaterial || v.material === selectedMaterial) &&
+    (!selectedSize || v.size === selectedSize)
+  );
+  const availableStock = matchedVariant ? matchedVariant.stockQuantity : product.stock;
+
+  // Per-color stock, aggregated across that color's variants (falls back to the product's overall stock)
+  const colorStock: Record<string, number> = {};
+  product.colors.forEach((col) => {
+    const total = productVariants
+      .filter((v) => v.productId === product.id && v.color === col.name)
+      .reduce((sum, v) => sum + v.stockQuantity, 0);
+    colorStock[col.name] = total > 0 ? total : product.stock;
+  });
+
   const isWishlisted = wishlist.some(item => item === product.id || item.startsWith(product.id + "::"));
 
   const handleToggleWishlist = () => {
@@ -237,7 +255,7 @@ export default function ProductDetailPage() {
           
           {/* LEFT: Showcase Image column */}
           <div className="lg:col-span-6 relative space-y-4">
-            <div className="aspect-square rounded-[28px] overflow-hidden bg-brand-bg relative border border-brand-primary/10">
+            <div className="aspect-square rounded-[28px] overflow-hidden bg-brand-bg relative border-2 border-brand-primary/20 shadow-sm">
               <SafeImage
                 src={displayedImage}
                 alt={product.name}
@@ -291,17 +309,23 @@ export default function ProductDetailPage() {
             )}
 
             {/* Handcrafted quality metrics banner below image */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-brand-bg/40 p-4 lg:min-h-20 lg:px-4 lg:py-4 rounded-xl border border-brand-primary/5 text-center space-y-1.5">
-                <Globe size={20} className="w-6 h-6 lg:w-7 lg:h-7 text-brand-primary mx-auto" />
+            <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-dashed border-brand-primary/15">
+              <div className="group bg-gradient-to-b from-white to-brand-bg/60 p-4 lg:min-h-20 lg:px-4 lg:py-5 rounded-xl border border-brand-primary/10 shadow-sm text-center space-y-2 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:border-brand-primary/25">
+                <div className="w-9 h-9 lg:w-10 lg:h-10 mx-auto rounded-full bg-brand-primary/10 flex items-center justify-center transition-colors group-hover:bg-brand-primary/20">
+                  <Globe size={18} className="text-brand-primary" />
+                </div>
                 <span className="block text-[10px] sm:text-xs lg:text-sm font-sans font-bold text-brand-fb">Dệt Nam Việt</span>
               </div>
-              <div className="bg-brand-bg/40 p-4 lg:min-h-20 lg:px-4 lg:py-4 rounded-xl border border-brand-primary/5 text-center space-y-1.5">
-                <Shield size={20} className="w-6 h-6 lg:w-7 lg:h-7 text-brand-primary mx-auto" />
+              <div className="group bg-gradient-to-b from-white to-brand-bg/60 p-4 lg:min-h-20 lg:px-4 lg:py-5 rounded-xl border border-brand-primary/10 shadow-sm text-center space-y-2 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:border-brand-primary/25">
+                <div className="w-9 h-9 lg:w-10 lg:h-10 mx-auto rounded-full bg-brand-primary/10 flex items-center justify-center transition-colors group-hover:bg-brand-primary/20">
+                  <Shield size={18} className="text-brand-primary" />
+                </div>
                 <span className="block text-[10px] sm:text-xs lg:text-sm font-sans font-bold text-brand-fb">Bọc thơm sả chanh</span>
               </div>
-              <div className="bg-brand-bg/40 p-4 lg:min-h-20 lg:px-4 lg:py-4 rounded-xl border border-brand-primary/5 text-center space-y-1.5">
-                <Award size={20} className="w-6 h-6 lg:w-7 lg:h-7 text-brand-primary mx-auto" />
+              <div className="group bg-gradient-to-b from-white to-brand-bg/60 p-4 lg:min-h-20 lg:px-4 lg:py-5 rounded-xl border border-brand-primary/10 shadow-sm text-center space-y-2 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:border-brand-primary/25">
+                <div className="w-9 h-9 lg:w-10 lg:h-10 mx-auto rounded-full bg-brand-primary/10 flex items-center justify-center transition-colors group-hover:bg-brand-primary/20">
+                  <Award size={18} className="text-brand-primary" />
+                </div>
                 <span className="block text-[10px] sm:text-xs lg:text-sm font-sans font-bold text-brand-fb">Nét đan 100% tay</span>
               </div>
             </div>
@@ -377,12 +401,12 @@ export default function ProductDetailPage() {
                 </div>
               )}
 
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-[#A8B5A2]/20 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#4A2F24]">
+              <div className="flex items-center gap-3 mt-6 mb-4 flex-wrap">
+                <span className="rounded-full bg-gradient-to-r from-sage-accent/20 to-sage-accent/10 border border-sage-accent/30 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-cocoa shadow-sm">
                   {product.stockStatus === "made-to-order" ? "Làm theo đơn" : product.stock > 0 ? "Còn hàng" : "Hết hàng"}
                 </span>
                 {product.tags?.map(tag => (
-                  <span key={tag} className="rounded-full border border-[#8C6A53]/15 px-3 py-1 text-[10px] text-[#8C6A53]">
+                  <span key={tag} className="rounded-full border-2 border-divider-beige/60 bg-ivory/40 px-4 py-1.5 text-xs text-cocoa hover:border-gold/40 transition-colors">
                     #{tag}
                   </span>
                 ))}
@@ -393,28 +417,63 @@ export default function ProductDetailPage() {
                 
                 {/* 1. Color variations swatch */}
                 <div className="space-y-2">
-                  <span className="text-xs lg:text-sm font-sans font-medium text-brand-fb/60 uppercase block">Tone sắc màu len dệt: <span className="text-brand-primary font-bold">{selectedColor}</span></span>
-                  <div className="flex gap-2.5 flex-wrap">
-                    {product.colors.map((col) => (
-                      <button
-                        key={col.name}
-                        onClick={() => handleSelectColor(col.name)}
-                        style={{ backgroundColor: col.hex }}
-                        className={`w-6 h-6 lg:w-7 lg:h-7 min-w-6 min-h-6 flex-none rounded-full border-2 transition-transform relative cursor-pointer group shadow-sm flex items-center justify-center ${
-                          selectedColor === col.name
-                            ? "border-brand-primary scale-110"
-                            : "border-brand-primary/10 hover:scale-105"
-                        }`}
-                        title={col.name}
-                      >
-                        {selectedColor === col.name && (
-                          <span className="w-2 h-2 rounded-full bg-brand-fb" />
-                        )}
-                        <span className="absolute bottom-full left-1/2 -translate-x-1/2 bg-brand-fb text-white text-[9px] px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap mb-2 pointer-events-none z-10">
-                          {col.name}
-                        </span>
-                      </button>
-                    ))}
+                  <span className="text-xs lg:text-sm font-sans font-medium text-brand-fb/60 uppercase block">
+                    Tone sắc màu len dệt: <span className="text-brand-primary font-bold">{selectedColor}</span>
+                    {selectedColor && (
+                      <span className="normal-case font-sans font-semibold text-brand-fb/40 ml-1.5">
+                        ({colorStock[selectedColor] > 0 ? `Còn ${colorStock[selectedColor]} sản phẩm` : "Hết hàng"})
+                      </span>
+                    )}
+                  </span>
+                  <div className="flex gap-6 flex-wrap pt-2">
+                    {product.colors.map((col) => {
+                      const isSelected = selectedColor === col.name;
+                      return (
+                        <button
+                          key={col.name}
+                          onClick={() => handleSelectColor(col.name)}
+                          title={col.name}
+                          className="relative w-9 h-9 lg:w-10 lg:h-10 flex-none cursor-pointer group flex items-center justify-center"
+                        >
+                          {/* Elemental rotating ring — Genshin-style vision select */}
+                          {isSelected && (
+                            <motion.span
+                              className="absolute -inset-2 rounded-full border-2 border-dashed"
+                              style={{ borderColor: col.hex }}
+                              animate={{ rotate: 360 }}
+                              transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                            />
+                          )}
+                          {/* Soft elemental glow pulse */}
+                          {isSelected && (
+                            <motion.span
+                              className="absolute -inset-3 rounded-full pointer-events-none"
+                              style={{ boxShadow: `0 0 16px 3px ${col.hex}99` }}
+                              animate={{ opacity: [0.35, 0.85, 0.35] }}
+                              transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+                            />
+                          )}
+                          {/* The swatch itself */}
+                          <motion.span
+                            style={{ backgroundColor: col.hex }}
+                            className={`block w-full h-full rounded-full shadow-sm ${
+                              isSelected ? "border-[3px] border-white shadow-md" : "border-2 border-brand-primary/15 group-hover:border-white"
+                            }`}
+                            animate={{ scale: isSelected ? 1.22 : 1 }}
+                            whileHover={{ scale: isSelected ? 1.22 : 1.08 }}
+                            whileTap={{ scale: 0.92 }}
+                            transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                          />
+                          {/* Selected checkmark dot */}
+                          {isSelected && (
+                            <span className="absolute w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_2px_rgba(0,0,0,0.4)]" />
+                          )}
+                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 bg-brand-fb text-white text-[9px] px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap mb-3 pointer-events-none z-10">
+                            {col.name} · {colorStock[col.name] > 0 ? `Còn ${colorStock[col.name]}` : "Hết hàng"}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -445,9 +504,12 @@ export default function ProductDetailPage() {
                 </div>
 
                 {/* 3. Choose Custom sizing */}
-                <div className="space-y-2">
-                  <span className="text-xs lg:text-sm font-sans font-medium text-brand-fb/60 uppercase block">Chọn Khung Size dệt rộng:</span>
-                  <div className="flex gap-2 flex-wrap">
+                <div className="space-y-4 p-5 bg-gradient-to-br from-ivory/40 to-cream/30 rounded-2xl border border-divider-beige/40">
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-gold animate-pulse" />
+                    <span className="font-label-italic text-sm text-gold">Chọn Khung Size dệt rộng</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {product.sizes.map((size) => {
                       const optionMod = parseSizeModifier(size);
 
@@ -461,16 +523,19 @@ export default function ProductDetailPage() {
                               setCustomNote("");
                             }
                           }}
-                          className={`min-h-11 px-4 py-2.5 rounded-xl border font-sans text-sm font-medium transition-colors duration-200 cursor-pointer flex items-center gap-2 ${
+                          className={`group relative min-h-14 px-4 py-3 rounded-xl border-2 font-sans text-sm font-semibold transition-all duration-300 cursor-pointer flex flex-col items-center justify-center gap-1 overflow-hidden ${
                             selectedSize === size
-                              ? "bg-brand-primary text-white border-brand-primary"
-                              : "bg-white border-brand-primary/10 text-brand-fb/80 hover:bg-brand-primary/5"
+                              ? "bg-gradient-to-br from-gold to-gold/90 text-white border-gold shadow-soft scale-105"
+                              : "bg-white border-divider-beige text-cocoa/80 hover:border-gold/40 hover:bg-ivory/60 hover:scale-102"
                           }`}
                         >
-                          <span>{size}</span>
+                          {selectedSize === size && (
+                            <span className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent" />
+                          )}
+                          <span className="relative">{size}</span>
                           {optionMod > 0 && (
-                            <span className={`text-[9px] font-mono ${selectedSize === size ? "text-brand-secondary" : "text-brand-primary"}`}>
-                              (+{optionMod / 1000}K)
+                            <span className={`relative text-xs font-mono ${selectedSize === size ? "text-white/90" : "text-gold"}`}>
+                              +{optionMod / 1000}K
                             </span>
                           )}
                         </button>
@@ -509,10 +574,14 @@ export default function ProductDetailPage() {
 
                 <button
                   onClick={handleAddToCart}
-                  className="flex-1 w-full border-2 border-brand-primary bg-white text-brand-primary hover:bg-brand-primary hover:text-white text-sm lg:text-base font-medium uppercase tracking-wider min-h-11 px-4 py-2.5 rounded-xl shadow-sm flex items-center justify-center gap-2 cursor-pointer transition-colors duration-200"
+                  className="group relative flex-1 w-full rounded-xl border-2 border-gold/30 bg-ivory/60 px-5 py-3 text-sm font-bold text-cocoa transition-all duration-300 hover:border-gold hover:bg-gold/10 hover:shadow-md flex items-center justify-center gap-2 overflow-hidden"
                 >
-                  <ShoppingBag size={16} />
-                  Thêm vào giỏ
+                  <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-700" />
+                  <ShoppingBag size={16} className="relative" />
+                  <span className="relative font-sans">Thêm vào giỏ</span>
+                  <span className="pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-brand-fb px-3 py-1.5 text-[11px] font-sans font-bold text-white opacity-0 shadow-lg transition-opacity duration-200 group-hover:opacity-100 z-10">
+                    {availableStock > 0 ? `Còn ${availableStock} sản phẩm` : "Hết hàng"}
+                  </span>
                 </button>
 
                 {/* Wishlist toggle icon */}
@@ -555,15 +624,27 @@ export default function ProductDetailPage() {
                   onClick={() => {
                     navigate(`/products/${prod.id}`);
                   }}
-                  className="bg-brand-card rounded-2xl border border-brand-primary/5 p-4 cursor-pointer hover:shadow-lg transition-all text-left flex gap-4 group"
+                  className="relative overflow-hidden bg-brand-card rounded-2xl border border-brand-primary/5 p-4 cursor-pointer hover:shadow-lg transition-all text-left flex gap-4 group"
                 >
+                  {/* Blurred product image as ambient background behind the white frame */}
+                  <div className="absolute inset-0 -z-10">
+                    <img
+                      src={prod.image}
+                      alt=""
+                      aria-hidden="true"
+                      className="w-full h-full object-cover scale-125 blur-xl opacity-25 group-hover:opacity-40 group-hover:scale-135 transition-all duration-500"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute inset-0 bg-white/70" />
+                  </div>
+
                   <img
                     src={prod.image}
                     alt={prod.name}
-                    className="w-16 h-16 object-cover rounded-xl border border-brand-primary/10 bg-white"
+                    className="relative w-24 h-24 shrink-0 object-cover rounded-xl border border-brand-primary/10 bg-white"
                     referrerPolicy="no-referrer"
                   />
-                  <div className="flex-1 space-y-1 min-w-0">
+                  <div className="relative flex-1 space-y-1.5 min-w-0 py-1">
                     <span className="text-[9px] bg-brand-primary/5 text-brand-primary px-1.5 py-0.5 rounded-full font-sans">
                       {prod.category}
                     </span>
@@ -596,16 +677,16 @@ export default function ProductDetailPage() {
               )}
 
               {productReviews.map((rev) => (
-                <div key={rev.id} className="p-5 bg-white rounded-2xl border border-brand-primary/5 shadow-sm text-left flex gap-4">
+                <div key={rev.id} className="p-6 bg-white rounded-2xl border border-brand-primary/5 shadow-sm text-left flex gap-5">
                   <img
                     src={rev.avatar}
                     alt={rev.author}
-                    className="w-10 h-10 rounded-full object-cover border"
+                    className="w-14 h-14 rounded-full object-cover border-2 border-ivory shadow-soft shrink-0"
                     referrerPolicy="no-referrer"
                   />
-                  <div className="flex-grow space-y-1">
+                  <div className="flex-grow space-y-2">
                     <div className="flex items-center justify-between">
-                      <h4 className="font-serif font-bold text-xs text-brand-fb">{rev.author}</h4>
+                      <h4 className="font-serif font-bold text-sm text-brand-fb">{rev.author}</h4>
                       <div className="flex text-yellow-500">
                         {Array.from({ length: rev.rating }).map((_, i) => (
                           <Star key={i} size={9} className="fill-current" />
