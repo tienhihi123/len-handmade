@@ -19,14 +19,26 @@ const INVENTORY_TRANSACTIONS_COLLECTION = "inventoryTransactions";
 
 /**
  * Subscribe to all inventory transactions in real-time.
+ * CHỈ dùng ở trang admin — Firestore Rules yêu cầu role staff (admin/product_manager/
+ * store_manager/auditor) mới đọc được collection này.
  */
-export function subscribeToInventoryTransactions(callback: (logs: InventoryLog[]) => void): Unsubscribe {
+export function subscribeToInventoryTransactions(
+  callback: (logs: InventoryLog[]) => void,
+  onError?: (error: import("firebase/firestore").FirestoreError) => void
+): Unsubscribe {
   if (!db) return () => {};
   const q = query(collection(db, INVENTORY_TRANSACTIONS_COLLECTION), orderBy("createdAt", "desc"));
-  return onSnapshot(q, (snap) => {
-    const logs = snap.docs.map((doc) => doc.data() as InventoryLog);
-    callback(logs);
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      const logs = snap.docs.map((doc) => doc.data() as InventoryLog);
+      callback(logs);
+    },
+    (error) => {
+      console.warn(`[subscribeToInventoryTransactions] ${INVENTORY_TRANSACTIONS_COLLECTION} ${error.code}: ${error.message}`);
+      onError?.(error);
+    }
+  );
 }
 
 /**

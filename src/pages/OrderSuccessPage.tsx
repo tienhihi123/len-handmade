@@ -7,6 +7,7 @@ import { reportPaymentTransferred } from "../lib/firestoreOrders";
 import { sendPaymentReportedEmail } from "../lib/emailService";
 import { buildVietQrImageUrl, getBankQrInfo, getMomoPhone } from "../lib/payments";
 import { isFirebaseConfigured } from "../lib/firebase";
+import { logActivity } from "../lib/activityService";
 
 export default function OrderSuccessPage() {
   const { allOrders, currentUser, setOrdersList } = useApp();
@@ -49,6 +50,13 @@ export default function OrderSuccessPage() {
       void sendPaymentReportedEmail(order).catch((error) => {
         console.warn("[emailService] Email báo shop chuyển khoản thất bại", error);
       });
+      void logActivity(
+        currentUser.id,
+        "payment_reported",
+        "Báo đã chuyển khoản",
+        `Đơn ${order.orderCode || order.id} — ${order.totalPrice.toLocaleString("vi-VN")}đ`,
+        order.id
+      );
     } catch (error) {
       console.warn("[OrderSuccess] Báo chuyển khoản thất bại:", error);
       setReportError("Chưa gửi được thông báo cho shop. Bạn vui lòng thử lại nhé.");

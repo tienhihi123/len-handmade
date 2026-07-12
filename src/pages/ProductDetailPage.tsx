@@ -15,6 +15,7 @@ import { calculateItemPrice, parseSizeModifier } from "../utils/pricing";
 import { BRAND_NAME } from "../constants/brand";
 import { isFirebaseConfigured } from "../lib/firebase";
 import { submitReviewToFirestore, subscribeToProductReviews } from "../lib/firestoreReviews";
+import { logActivity } from "../lib/activityService";
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -259,6 +260,8 @@ export default function ProductDetailPage() {
       };
       setReviewsList(prev => [addedReview, ...prev]);
     }
+
+    void logActivity(currentUser.id, "review_created", "Gửi cảm từ mới", `${product.name} — ${rating} sao`, product.id);
 
     setText("");
     setReviewSent(true);

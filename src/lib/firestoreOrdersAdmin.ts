@@ -14,6 +14,7 @@ import {
 import { db, isFirebaseConfigured } from "./firebase";
 import { LoggedOrder, ProductVariant, ShopNotification } from "../types";
 import { resolveVariantPlans } from "./firestoreOrders";
+import { logActivity } from "./activityService";
 
 /**
  * Toàn bộ đơn cho admin — đọc từ collection gốc `orders` (mọi đơn mới đều được
@@ -122,6 +123,16 @@ export async function cancelOrderAndRestock(userId: string, orderId: string): Pr
       });
     }
   });
+
+  // Ghi activity log SAU KHI transaction hủy đơn đã thành công (ghi cho đúng
+  // khách hàng chủ đơn — hành động do admin thực hiện, không phải khách).
+  void logActivity(
+    userId,
+    "order_cancelled",
+    "Đơn hàng đã bị hủy",
+    `Đơn ${currentOrder.orderCode || orderId} đã được hủy và hoàn kho`,
+    orderId
+  );
 }
 
 /** Admin bấm "Đã nhận tiền" — pending_confirmation → paid trên cả hai documents. */

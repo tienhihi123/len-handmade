@@ -25,10 +25,14 @@ const PRODUCTS_COLLECTION = "products";
 export function subscribeToProducts(callback: (products: Product[]) => void): Unsubscribe {
   if (!db) return () => {};
   const q = query(collection(db, PRODUCTS_COLLECTION), orderBy("name"));
-  return onSnapshot(q, (snap) => {
-    const products = snap.docs.map((doc) => doc.data() as Product);
-    callback(products);
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      const products = snap.docs.map((doc) => doc.data() as Product);
+      callback(products);
+    },
+    (error) => console.warn(`[subscribeToProducts] ${PRODUCTS_COLLECTION} ${error.code}: ${error.message}`)
+  );
 }
 
 /**

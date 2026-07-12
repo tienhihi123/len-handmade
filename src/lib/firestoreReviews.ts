@@ -95,7 +95,7 @@ export function subscribeToProductReviews(
           emit();
         },
         (error) => {
-          console.warn("subscribeToProductReviews (approved) failed:", error.code, error.message);
+          console.warn(`[subscribeToProductReviews:approved] products/${productId}/reviews ${error.code}: ${error.message}`);
           onError?.(error);
         }
       )
@@ -110,7 +110,7 @@ export function subscribeToProductReviews(
             emit();
           },
           (error) => {
-            console.warn("subscribeToProductReviews (own) failed:", error.code, error.message);
+            console.warn(`[subscribeToProductReviews:own] products/${productId}/reviews ${error.code}: ${error.message}`);
             onError?.(error);
           }
         )
@@ -142,7 +142,7 @@ export function subscribeToMyReviews(
         onChange(snapshot.docs.map(mapReviewDoc));
       },
       (error) => {
-        console.warn("subscribeToMyReviews failed:", error.code, error.message);
+        console.warn(`[subscribeToMyReviews] collectionGroup(reviews) where userId==${userId} ${error.code}: ${error.message}`);
         onError?.(error);
       }
     );

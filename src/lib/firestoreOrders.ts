@@ -14,7 +14,7 @@ import {
   Unsubscribe
 } from "firebase/firestore";
 import { db, isFirebaseConfigured } from "./firebase";
-import { LoggedOrder, ProductVariant, ShopNotification } from "../types";
+import { LoggedOrder, OrderItemDetail, ProductVariant, ShopNotification } from "../types";
 
 /** Lỗi nghiệp vụ khi tạo đơn (hết hàng, chưa cấu hình...) — message hiển thị được cho khách. */
 export class OrderCreationError extends Error {
@@ -24,9 +24,25 @@ export class OrderCreationError extends Error {
   }
 }
 
-// Firestore SDK từ chối field undefined — loại bỏ trước khi ghi.
-function sanitize<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
+/**
+ * Dựng lại item đơn hàng SẠCH cho payload ghi Firestore — chỉ định nghĩa đúng
+ * field cần thiết, field optional (variantId/productImage/customMeasurements)
+ * dùng conditional spread. KHÔNG spread nguyên `...item` gốc (item gốc có thể
+ * chứa field undefined từ nơi khác gọi tới).
+ */
+function buildCleanOrderItem(item: OrderItemDetail, variantId: string | undefined): OrderItemDetail {
+  return {
+    productId: item.productId,
+    productName: item.productName,
+    color: item.color,
+    size: item.size,
+    quantity: item.quantity,
+    price: item.price,
+    subtotal: item.subtotal,
+    ...(variantId ? { variantId } : {}),
+    ...(item.productImage ? { productImage: item.productImage } : {}),
+    ...(item.customMeasurements ? { customMeasurements: item.customMeasurements } : {})
+  };
 }
 
 interface VariantPlan {
@@ -106,25 +122,40 @@ export async function createOrderInFirestore(userId: string, order: LoggedOrder)
   if (!isFirebaseConfigured || !db) {
     throw new OrderCreationError("Hệ thống đặt hàng trực tuyến chưa sẵn sàng. Vui lòng thử lại sau.");
   }
+  if (!order.items || order.items.length === 0) {
+    throw new OrderCreationError("Đơn hàng không có sản phẩm nào. Vui lòng kiểm tra lại giỏ hàng.");
+  }
+  // Field bắt buộc của từng item: phải có giá trị hợp lệ, không thì throw rõ ràng
+  // (không âm thầm ghi field rỗng/undefined vào Firestore).
+  for (const item of order.items) {
+    if (!item.productId || !item.productName || !item.color || !item.size) {
+      throw new OrderCreationError("Thông tin sản phẩm trong đơn hàng bị thiếu. Vui lòng thử lại từ giỏ hàng.");
+    }
+    if (!Number.isFinite(item.quantity) || item.quantity <= 0 || !Number.isFinite(item.price) || !Number.isFinite(item.subtotal)) {
+      throw new OrderCreationError("Số lượng hoặc giá sản phẩm không hợp lệ. Vui lòng thử lại.");
+    }
+  }
+
   const firestore = db;
   const variantPlans = await resolveVariantPlans(order.items);
   const itemVariantIds = await resolveItemVariantIds(order.items);
-  const itemsWithVariant = (order.items ?? []).map((item, idx) => ({
-    ...item,
-    variantId: itemVariantIds[idx]
-  }));
-  const purchasedItemKeys = itemsWithVariant.map((item) => `${item.productId}_${item.variantId ?? "default"}`);
+  // Field optional (variantId/productImage/customMeasurements) được dựng sạch qua
+  // buildCleanOrderItem — không spread nguyên item gốc, không ghi key undefined.
+  const cleanItems = order.items.map((item, idx) => buildCleanOrderItem(item, itemVariantIds[idx]));
+  // purchasedItemKeys luôn là string[] hợp lệ — variantId rỗng dùng fallback "default".
+  const purchasedItemKeys: string[] = cleanItems.map((item) => `${item.productId}_${item.variantId ?? "default"}`);
 
   const nowIso = new Date().toISOString();
   const payload = {
-    ...sanitize(order),
-    items: itemsWithVariant,
+    ...order,
+    items: cleanItems,
     purchasedItemKeys,
     userId,
     paymentStatus: order.paymentStatus ?? "unpaid",
     updatedAt: nowIso,
     createdAt: serverTimestamp()
   };
+
   const rootRef = doc(firestore, "orders", order.id);
   const userRef = doc(firestore, "users", userId, "orders", order.id);
 
@@ -217,7 +248,7 @@ export function subscribeToUserOrders(
     query(collection(db, "users", userId, "orders"), orderBy("time", "desc")),
     (snapshot) => onChange(snapshot.docs.map((docSnap) => docSnap.data() as LoggedOrder)),
     (error) => {
-      console.warn("[firestoreOrders] subscribeToUserOrders lỗi:", error);
+      console.warn(`[subscribeToUserOrders] users/${userId}/orders ${error.code}: ${error.message}`);
       onError?.(error);
     }
   );
@@ -231,7 +262,7 @@ export async function mirrorOrderToFirestore(userId: string, order: LoggedOrder)
   if (!isFirebaseConfigured || !db) return;
   try {
     await setDoc(doc(db, "users", userId, "orders", order.id), {
-      ...sanitize(order),
+      ...order,
       userId,
       createdAt: serverTimestamp()
     });

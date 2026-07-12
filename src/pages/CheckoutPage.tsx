@@ -8,6 +8,7 @@ import { buildVietQrImageUrl, buildMomoQrImageUrl, getBankQrInfo, getMomoPhone, 
 import { createOrderInFirestore, OrderCreationError } from "../lib/firestoreOrders";
 import { sendOrderConfirmationEmail, sendShopNewOrderEmail } from "../lib/emailService";
 import { isFirebaseConfigured } from "../lib/firebase";
+import { logActivity } from "../lib/activityService";
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
@@ -136,19 +137,21 @@ export default function CheckoutPage() {
     // Summary of products representation text
     const namesRep = cart.map(i => `${i.product.name} (x${i.quantity})`).join(", ");
 
-    // Build order items detail with measurements
+    // Build order items detail with measurements. Field optional (productImage,
+    // customMeasurements) dùng conditional spread — không bao giờ ghi key với giá
+    // trị undefined (Firestore Transaction.set() từ chối field undefined).
     const orderItems: OrderItemDetail[] = cart.map(item => {
       const unitPrice = calculateItemPrice(item.product, item.selectedSize, item.selectedMaterial);
       return {
         productId: item.product.id,
         productName: item.product.name,
-        productImage: item.product.image,
         color: item.selectedColor,
         size: item.selectedSize,
         quantity: item.quantity,
         price: unitPrice,
         subtotal: unitPrice * item.quantity,
-        customMeasurements: item.customMeasurements
+        ...(item.product.image ? { productImage: item.product.image } : {}),
+        ...(item.customMeasurements ? { customMeasurements: item.customMeasurements } : {})
       };
     });
 
@@ -167,7 +170,8 @@ export default function CheckoutPage() {
       discountApplied: discountVal,
       coinsUsed: maxCoinsApplied,
       paymentMethod,
-      note: embroideryText || undefined,
+      // Field optional — chỉ ghi key khi có giá trị, không set "undefined" tường minh.
+      ...(embroideryText ? { note: embroideryText } : {}),
       items: orderItems,
       paymentStatus: "unpaid",
       updatedAt: new Date().toISOString()
@@ -195,6 +199,14 @@ export default function CheckoutPage() {
       void sendShopNewOrderEmail(newOrder).catch((error) => {
         console.warn("[emailService] Email báo shop thất bại", error);
       });
+      // Ghi Firestore activity log SAU KHI đơn đã tạo thành công
+      void logActivity(
+        currentUser.id,
+        "order_created",
+        "Đặt đơn hàng thành công",
+        `Đơn ${newOrder.orderCode || newOrder.id} — ${namesRep}`,
+        newOrder.id
+      );
     }
     setOrderPlaced(true);
 

@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, Navigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
+import type { QueryDocumentSnapshot, DocumentData } from "firebase/firestore";
 import {
   Sparkles, Gift, CheckCircle2, Copy, LogOut, ShieldAlert, Award, Calendar, CreditCard, Clock, Hourglass, Phone, MapPin, AlertCircle,
-  User, Package, History, Star, Lock, ArrowRight
+  User, Package, History, Star, Lock, ArrowRight, Wallet as WalletIcon, ListChecks
 } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import OrdersPage from "./OrdersPage";
 import { subscribeToMyReviews } from "../lib/firestoreReviews";
-import type { Review } from "../types";
+import { logActivity, subscribeToMyActivityLogs, fetchMoreActivityLogs, PAGE_SIZE as ACTIVITY_PAGE_SIZE } from "../lib/activityService";
+import { subscribeToMyWalletTransactions, fetchMoreWalletTransactions, PAGE_SIZE as WALLET_PAGE_SIZE } from "../lib/walletService";
+import ChangePasswordForm from "../components/profile/ChangePasswordForm";
+import type { Review, FirestoreUserActivityLog, WalletTransaction } from "../types";
 
 const REVIEW_STATUS_LABEL: Record<NonNullable<Review["status"]>, string> = {
   approved: "Đã duyệt",
@@ -16,7 +20,21 @@ const REVIEW_STATUS_LABEL: Record<NonNullable<Review["status"]>, string> = {
   hidden: "Đã ẩn"
 };
 
+const ACTIVITY_TYPE_LABEL: Record<FirestoreUserActivityLog["type"], string> = {
+  login: "Đăng nhập",
+  profile_updated: "Cập nhật hồ sơ",
+  password_changed: "Đổi mật khẩu",
+  order_created: "Đặt đơn hàng",
+  payment_reported: "Báo chuyển khoản",
+  cancellation_requested: "Yêu cầu hủy đơn",
+  order_cancelled: "Hủy đơn hàng",
+  review_created: "Gửi cảm từ",
+  review_updated: "Sửa cảm từ",
+  balance_changed: "Biến động số dư"
+};
+
 type AccountTab = "overview" | "orders" | "history" | "reviews" | "security";
+type HistorySubTab = "activity" | "wallet";
 
 const TABS: { id: AccountTab; label: string; icon: typeof User }[] = [
   { id: "overview", label: "Tổng quan", icon: User },
@@ -57,6 +75,92 @@ export default function AccountPage() {
     const parse = (d: string) => (Date.parse(d) || 0);
     return parse(b.date) - parse(a.date);
   });
+
+  // --- Lịch sử: Nhật ký hoạt động (Firestore, users/{uid}/activityLogs) ---
+  const [historySubTab, setHistorySubTab] = useState<HistorySubTab>("activity");
+
+  const [activityLogs, setActivityLogs] = useState<FirestoreUserActivityLog[]>([]);
+  const [activityLoading, setActivityLoading] = useState(true);
+  const [activityError, setActivityError] = useState<string | null>(null);
+  const [activityLastDoc, setActivityLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [activityLoadingMore, setActivityLoadingMore] = useState(false);
+  const [activityHasMore, setActivityHasMore] = useState(true);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    setActivityLoading(true);
+    setActivityError(null);
+    const unsubscribe = subscribeToMyActivityLogs(
+      currentUser.id,
+      (logs, lastDoc) => {
+        setActivityLogs(logs);
+        setActivityLastDoc(lastDoc);
+        setActivityHasMore(logs.length >= ACTIVITY_PAGE_SIZE);
+        setActivityLoading(false);
+      },
+      () => {
+        setActivityError("Không thể tải nhật ký hoạt động lúc này. Vui lòng thử lại sau.");
+        setActivityLoading(false);
+      }
+    );
+    return unsubscribe;
+  }, [currentUser?.id]);
+
+  const handleLoadMoreActivity = async () => {
+    if (!currentUser || !activityLastDoc || activityLoadingMore) return;
+    setActivityLoadingMore(true);
+    try {
+      const { items, lastDoc } = await fetchMoreActivityLogs(currentUser.id, activityLastDoc);
+      setActivityLogs((prev) => [...prev, ...items]);
+      setActivityLastDoc(lastDoc);
+      setActivityHasMore(items.length >= ACTIVITY_PAGE_SIZE);
+    } catch (error) {
+      console.warn("[AccountPage] handleLoadMoreActivity failed:", error);
+    }
+    setActivityLoadingMore(false);
+  };
+
+  // --- Lịch sử: Biến động số dư (Firestore, users/{uid}/walletTransactions) — CHỈ đọc ---
+  const [walletTx, setWalletTx] = useState<WalletTransaction[]>([]);
+  const [walletLoading, setWalletLoading] = useState(true);
+  const [walletError, setWalletError] = useState<string | null>(null);
+  const [walletLastDoc, setWalletLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [walletLoadingMore, setWalletLoadingMore] = useState(false);
+  const [walletHasMore, setWalletHasMore] = useState(true);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    setWalletLoading(true);
+    setWalletError(null);
+    const unsubscribe = subscribeToMyWalletTransactions(
+      currentUser.id,
+      (items, lastDoc) => {
+        setWalletTx(items);
+        setWalletLastDoc(lastDoc);
+        setWalletHasMore(items.length >= WALLET_PAGE_SIZE);
+        setWalletLoading(false);
+      },
+      () => {
+        setWalletError("Không thể tải biến động số dư lúc này. Vui lòng thử lại sau.");
+        setWalletLoading(false);
+      }
+    );
+    return unsubscribe;
+  }, [currentUser?.id]);
+
+  const handleLoadMoreWallet = async () => {
+    if (!currentUser || !walletLastDoc || walletLoadingMore) return;
+    setWalletLoadingMore(true);
+    try {
+      const { items, lastDoc } = await fetchMoreWalletTransactions(currentUser.id, walletLastDoc);
+      setWalletTx((prev) => [...prev, ...items]);
+      setWalletLastDoc(lastDoc);
+      setWalletHasMore(items.length >= WALLET_PAGE_SIZE);
+    } catch (error) {
+      console.warn("[AccountPage] handleLoadMoreWallet failed:", error);
+    }
+    setWalletLoadingMore(false);
+  };
 
   const [checkInDone, setCheckInDone] = useState(() => localStorage.getItem("mission_checkin_done") === "true");
   const [profileDone, setProfileDone] = useState(() => localStorage.getItem("mission_profile_done") === "true");
@@ -135,6 +239,7 @@ export default function AccountPage() {
     setProfileFormError("");
     setIsExpandingProfile(false);
     handleClaimCoins("profile");
+    void logActivity(currentUser.id, "profile_updated", "Cập nhật hồ sơ", "Bổ sung số điện thoại và địa chỉ giao nhận");
   };
 
   return (
@@ -190,19 +295,122 @@ export default function AccountPage() {
         )}
 
         {activeTab === "history" && (
-          <div className="bg-white rounded-2xl border border-brand-primary/10 p-8 text-center space-y-3">
-            <History size={32} className="text-brand-primary/40 mx-auto" />
-            <h3 className="font-serif font-bold text-base text-brand-fb">Nhật ký hoạt động &amp; biến động số dư</h3>
-            <p className="font-sans text-xs text-brand-fb/60 max-w-sm mx-auto">
-              Lịch sử đơn hàng cơ bản đã có tại tab "Đơn hàng của tôi". Nhật ký hoạt động chi tiết và
-              biến động Xu (Ví) sẽ được bổ sung ở bản cập nhật tiếp theo.
-            </p>
-            <button
-              onClick={() => setActiveTab("orders")}
-              className="inline-flex items-center gap-1.5 text-xs font-sans font-bold text-brand-primary"
-            >
-              Xem lịch sử đơn hàng <ArrowRight size={12} />
-            </button>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setHistorySubTab("activity")}
+                  className={`flex items-center gap-1.5 text-xs font-sans font-bold px-3.5 py-2 rounded-full transition-colors cursor-pointer ${
+                    historySubTab === "activity" ? "bg-brand-primary text-white" : "bg-white text-brand-fb/60 border border-brand-primary/10"
+                  }`}
+                >
+                  <ListChecks size={13} /> Nhật ký hoạt động
+                </button>
+                <button
+                  onClick={() => setHistorySubTab("wallet")}
+                  className={`flex items-center gap-1.5 text-xs font-sans font-bold px-3.5 py-2 rounded-full transition-colors cursor-pointer ${
+                    historySubTab === "wallet" ? "bg-brand-primary text-white" : "bg-white text-brand-fb/60 border border-brand-primary/10"
+                  }`}
+                >
+                  <WalletIcon size={13} /> Biến động số dư
+                </button>
+              </div>
+              <button
+                onClick={() => setActiveTab("orders")}
+                className="inline-flex items-center gap-1.5 text-xs font-sans font-bold text-brand-primary"
+              >
+                Xem lịch sử đơn hàng <ArrowRight size={12} />
+              </button>
+            </div>
+
+            {historySubTab === "activity" && (
+              <div className="bg-white rounded-2xl border border-brand-primary/10 p-6 space-y-3">
+                {activityLoading && (
+                  <p className="font-sans text-xs text-brand-fb/50 italic animate-pulse text-center py-6">Đang tải nhật ký hoạt động...</p>
+                )}
+                {!activityLoading && activityError && (
+                  <p className="font-sans text-xs text-red-600 text-center py-6">{activityError}</p>
+                )}
+                {!activityLoading && !activityError && activityLogs.length === 0 && (
+                  <p className="font-sans text-xs text-brand-fb/50 text-center py-6">Chưa có hoạt động nào được ghi nhận.</p>
+                )}
+                {!activityLoading && !activityError && activityLogs.length > 0 && (
+                  <>
+                    <div className="space-y-2">
+                      {activityLogs.map((log) => (
+                        <div key={log.id} className="flex items-start justify-between gap-3 p-3 rounded-xl bg-brand-bg/40 border border-brand-primary/5">
+                          <div className="min-w-0">
+                            <p className="font-sans font-bold text-xs text-brand-fb">{log.title || ACTIVITY_TYPE_LABEL[log.type]}</p>
+                            <p className="text-[11px] text-brand-fb/60 mt-0.5">{log.description}</p>
+                          </div>
+                          <span className="text-[9px] font-mono text-brand-fb/30 shrink-0 whitespace-nowrap">
+                            {log.createdAt ? new Date(log.createdAt).toLocaleString("vi-VN") : ""}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    {activityHasMore && (
+                      <button
+                        onClick={handleLoadMoreActivity}
+                        disabled={activityLoadingMore}
+                        className="w-full text-center text-xs font-sans font-bold text-brand-primary py-2 disabled:opacity-50 cursor-pointer"
+                      >
+                        {activityLoadingMore ? "Đang tải..." : "Tải thêm"}
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {historySubTab === "wallet" && (
+              <div className="bg-white rounded-2xl border border-brand-primary/10 p-6 space-y-3">
+                {walletLoading && (
+                  <p className="font-sans text-xs text-brand-fb/50 italic animate-pulse text-center py-6">Đang tải biến động số dư...</p>
+                )}
+                {!walletLoading && walletError && (
+                  <p className="font-sans text-xs text-red-600 text-center py-6">{walletError}</p>
+                )}
+                {!walletLoading && !walletError && walletTx.length === 0 && (
+                  <p className="font-sans text-xs text-brand-fb/50 text-center py-6">Chưa có biến động số dư nào được ghi nhận.</p>
+                )}
+                {!walletLoading && !walletError && walletTx.length > 0 && (
+                  <>
+                    <div className="space-y-2">
+                      {walletTx.map((tx) => {
+                        const isPositive = tx.amount >= 0;
+                        return (
+                          <div key={tx.id} className="flex items-start justify-between gap-3 p-3 rounded-xl bg-brand-bg/40 border border-brand-primary/5">
+                            <div className="min-w-0">
+                              <p className="font-sans font-bold text-xs text-brand-fb">{tx.description}</p>
+                              <p className="text-[11px] text-brand-fb/50 mt-0.5">
+                                Số dư: {tx.balanceBefore.toLocaleString("vi-VN")} → {tx.balanceAfter.toLocaleString("vi-VN")} xu
+                                {tx.referenceId ? ` · ${tx.referenceId}` : ""}
+                              </p>
+                              <span className="text-[9px] font-mono text-brand-fb/30 block mt-0.5">
+                                {tx.createdAt ? new Date(tx.createdAt).toLocaleString("vi-VN") : ""}
+                              </span>
+                            </div>
+                            <strong className={`font-mono text-xs shrink-0 ${isPositive ? "text-sage-accent" : "text-red-600"}`}>
+                              {isPositive ? "+" : ""}{tx.amount.toLocaleString("vi-VN")}
+                            </strong>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {walletHasMore && (
+                      <button
+                        onClick={handleLoadMoreWallet}
+                        disabled={walletLoadingMore}
+                        className="w-full text-center text-xs font-sans font-bold text-brand-primary py-2 disabled:opacity-50 cursor-pointer"
+                      >
+                        {walletLoadingMore ? "Đang tải..." : "Tải thêm"}
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -286,16 +494,7 @@ export default function AccountPage() {
           </div>
         )}
 
-        {activeTab === "security" && (
-          <div className="bg-white rounded-2xl border border-brand-primary/10 p-8 text-center space-y-3">
-            <Lock size={32} className="text-brand-primary/40 mx-auto" />
-            <h3 className="font-serif font-bold text-base text-brand-fb">Bảo mật &amp; đổi mật khẩu</h3>
-            <p className="font-sans text-xs text-brand-fb/60 max-w-sm mx-auto">
-              Tính năng đổi mật khẩu (qua Firebase Authentication) sẽ có ở bản cập nhật tiếp theo. Tài khoản
-              đăng nhập bằng Google/Facebook sẽ không cần đổi mật khẩu tại đây.
-            </p>
-          </div>
-        )}
+        {activeTab === "security" && <ChangePasswordForm />}
 
         {/* Dashboard split content — Tổng quan */}
         {activeTab === "overview" && (

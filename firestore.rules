@@ -118,6 +118,24 @@ service cloud.firestore {
         allow update: if (isOwner(userId) && isCustomerPaymentReport()) || canReadOrdersBroad();
         allow delete: if isAdmin();
       }
+
+      // Nhật ký hoạt động — CHỈ để hiển thị lịch sử cho khách xem lại, KHÔNG phải
+      // audit bảo mật. Đọc: chỉ chính chủ. Ghi: chính chủ HOẶC staff (vd admin hủy
+      // đơn hộ khách vẫn cần ghi log vào đúng activityLogs của khách). Append-only —
+      // không cho sửa/xoá.
+      match /activityLogs/{logId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) || isAnyActiveStaff();
+        allow update, delete: if false;
+      }
+
+      // Biến động số dư/Xu — Phase B: CHỈ đọc. Không client nào (kể cả chính chủ
+      // hay staff) được ghi trực tiếp — earn/refund/adjustment cần trusted backend
+      // (Cloud Function) ở phase sau, chưa tồn tại.
+      match /walletTransactions/{transactionId} {
+        allow read: if isOwner(userId);
+        allow write: if false;
+      }
     }
 
     // ---------------- staff/{uid} ----------------

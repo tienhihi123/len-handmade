@@ -681,16 +681,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
   });
   useEffect(() => { localStorage.setItem("len_inventory_logs", JSON.stringify(inventoryLogs)); }, [inventoryLogs]);
 
-  // Subscribe to inventory transactions from Firestore
+  // Subscribe to inventory transactions from Firestore — CHỈ khi đã đăng nhập
+  // với vai trò staff. Firestore Rules chặn đọc `inventoryTransactions` cho
+  // role "customer" (chỉ admin/product_manager/store_manager/auditor mới đọc
+  // được) — subscribe không điều kiện trước đây gây permission-denied cho MỌI
+  // khách hàng thường trên MỌI trang (AppContext bọc toàn app). Dữ liệu này chỉ
+  // được dùng ở các trang admin (AdminInventoryPage, ProductsDashboardPage,
+  // AuditDashboardPage), không trang khách hàng nào cần tới.
   useEffect(() => {
-    if (!isFirebaseConfigured) return;
-    const unsubscribe = subscribeToInventoryTransactions((remote) => {
-      if (remote.length > 0) {
-        setInventoryLogs(remote);
+    if (!isFirebaseConfigured || !currentUser || currentUser.role === "customer") return;
+    const unsubscribe = subscribeToInventoryTransactions(
+      (remote) => {
+        if (remote.length > 0) {
+          setInventoryLogs(remote);
+        }
+      },
+      (error) => {
+        console.warn(
+          `[subscribeToInventoryTransactions] inventoryTransactions ${error.code}: ${error.message}`
+        );
       }
-    });
+    );
     return unsubscribe;
-  }, []);
+  }, [currentUser?.id, currentUser?.role]);
 
   const adjustVariantStock = async (variantId: string, change: number, reason: string) => {
     if (!isFirebaseConfigured) {

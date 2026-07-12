@@ -24,10 +24,14 @@ const CATEGORIES_COLLECTION = "categories";
 export function subscribeToCategories(callback: (categories: Category[]) => void): Unsubscribe {
   if (!db) return () => {};
   const q = query(collection(db, CATEGORIES_COLLECTION), orderBy("name"));
-  return onSnapshot(q, (snap) => {
-    const cats = snap.docs.map((doc) => doc.data() as Category);
-    callback(cats);
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      const cats = snap.docs.map((doc) => doc.data() as Category);
+      callback(cats);
+    },
+    (error) => console.warn(`[subscribeToCategories] ${CATEGORIES_COLLECTION} ${error.code}: ${error.message}`)
+  );
 }
 
 /**

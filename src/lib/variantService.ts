@@ -25,10 +25,14 @@ const VARIANTS_COLLECTION = "productVariants";
 export function subscribeToVariants(callback: (variants: ProductVariant[]) => void): Unsubscribe {
   if (!db) return () => {};
   const q = query(collection(db, VARIANTS_COLLECTION), orderBy("productName"));
-  return onSnapshot(q, (snap) => {
-    const variants = snap.docs.map((doc) => doc.data() as ProductVariant);
-    callback(variants);
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      const variants = snap.docs.map((doc) => doc.data() as ProductVariant);
+      callback(variants);
+    },
+    (error) => console.warn(`[subscribeToVariants] ${VARIANTS_COLLECTION} ${error.code}: ${error.message}`)
+  );
 }
 
 /**
