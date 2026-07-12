@@ -9,7 +9,7 @@ import { useApp } from "../context/AppContext";
 
 export default function OrdersPage() {
   const navigate = useNavigate();
-  const { ordersList, currentUser } = useApp();
+  const { ordersList, currentUser, ordersLoading } = useApp();
 
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
@@ -57,7 +57,13 @@ export default function OrdersPage() {
           </button>
         </div>
 
-        {ordersList.length === 0 ? (
+        {ordersLoading ? (
+          <div className="bg-brand-card rounded-3xl p-12 text-center border border-brand-primary/5 space-y-4">
+            <Package size={40} className="text-brand-primary/40 mx-auto animate-pulse" />
+            <h3 className="font-serif font-bold text-lg text-brand-fb">Đang tải đơn hàng của bạn...</h3>
+            <p className="font-sans text-xs text-brand-fb/60">Kết nối tới hệ thống đơn hàng thời gian thực.</p>
+          </div>
+        ) : ordersList.length === 0 ? (
           <div className="bg-brand-card rounded-3xl p-12 text-center border border-brand-primary/5 space-y-4">
             <Package size={40} className="text-brand-primary/40 mx-auto animate-pulse" />
             <h3 className="font-serif font-bold text-lg text-brand-fb">Nàng chưa gửi gắm đơn khâu nào</h3>
@@ -100,6 +106,15 @@ export default function OrdersPage() {
                         }`}>
                           {order.status}
                         </span>
+
+                        {/* Badge trạng thái thanh toán */}
+                        {(order.paymentStatus ?? "unpaid") === "paid" ? (
+                          <span className="text-[10px] font-sans font-bold px-2.5 py-0.5 rounded-full bg-sage-accent/20 text-brand-fb">Đã thanh toán</span>
+                        ) : (order.paymentStatus ?? "unpaid") === "pending_confirmation" ? (
+                          <span className="text-[10px] font-sans font-bold px-2.5 py-0.5 rounded-full bg-gold/20 text-brand-fb animate-pulse">Chờ xác nhận tiền</span>
+                        ) : order.paymentMethod && order.paymentMethod !== "cod" ? (
+                          <span className="text-[10px] font-sans font-bold px-2.5 py-0.5 rounded-full bg-divider-beige text-brand-fb/70">Chờ chuyển khoản</span>
+                        ) : null}
                       </div>
                       <h3 className="font-serif font-bold text-xs sm:text-sm text-brand-fb line-clamp-1">
                         {order.name}

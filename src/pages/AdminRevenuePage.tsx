@@ -1,7 +1,9 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BarChart3, TrendingUp, CreditCard, PieChart, FileText } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import CryptoLineChart from "../components/admin/CryptoLineChart";
+import { subscribeToAllOrdersForAdmin } from "../lib/firestoreOrdersAdmin";
+import type { LoggedOrder } from "../types";
 
 interface RealProductPerformance {
   productId: string;
@@ -11,22 +13,66 @@ interface RealProductPerformance {
   totalRevenue: number;
 }
 
+// Đơn được tính doanh thu: online đã xác nhận tiền (paid) hoặc COD đã hoàn tất.
+// KHÔNG tính: unpaid, pending_confirmation, refunded, đơn hủy.
+function isCountableOrder(order: LoggedOrder): boolean {
+  if (order.status === "Đã hủy") return false;
+  const paymentStatus = order.paymentStatus ?? "unpaid";
+  if (paymentStatus === "refunded") return false;
+  if (paymentStatus === "paid") return true;
+  return (order.paymentMethod ?? "cod") === "cod" && order.status === "Hoàn tất";
+}
+
 export default function AdminRevenuePage() {
-  const { revenueData, allOrders, viewStats } = useApp();
-  const totalRevenue = useMemo(() => revenueData.reduce((sum, item) => sum + item.revenue, 0), [revenueData]);
-  const chartData = useMemo(
-    () => revenueData.map((d) => ({ key: d.date, label: d.label ?? d.date, value: d.revenue, secondaryLabel: `${d.orders} đơn hàng` })),
-    [revenueData]
+  const { allOrders, viewStats } = useApp();
+
+  // Doanh thu tính từ đơn Firestore THẬT — không dùng sample revenueData nữa
+  const [firestoreOrders, setFirestoreOrders] = useState<LoggedOrder[]>([]);
+  useEffect(() => subscribeToAllOrdersForAdmin(setFirestoreOrders), []);
+  const sourceOrders = firestoreOrders.length > 0 ? firestoreOrders : allOrders;
+
+  const countableOrders = useMemo(() => sourceOrders.filter(isCountableOrder), [sourceOrders]);
+
+  const totalRevenue = useMemo(
+    () => countableOrders.reduce((sum, order) => sum + order.totalPrice, 0),
+    [countableOrders]
   );
-  const todayRevenue = Math.max(0, revenueData.slice(-1)[0]?.revenue || 0);
-  const totalOrders = allOrders.length;
+
+  // Chuỗi doanh thu theo ngày từ đơn hợp lệ (ngày ghi nhận: paidAt ?? time)
+  const revenueByDay = useMemo(() => {
+    const map = new Map<string, { revenue: number; orders: number }>();
+    countableOrders.forEach((order) => {
+      const dateKey = (order.paidAt ?? order.time).slice(0, 10);
+      const entry = map.get(dateKey) ?? { revenue: 0, orders: 0 };
+      entry.revenue += order.totalPrice;
+      entry.orders += 1;
+      map.set(dateKey, entry);
+    });
+    return Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, entry]) => ({ date, ...entry }));
+  }, [countableOrders]);
+
+  const chartData = useMemo(
+    () =>
+      revenueByDay.map((d) => ({
+        key: d.date,
+        label: new Date(d.date).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" }),
+        value: d.revenue,
+        secondaryLabel: `${d.orders} đơn hàng`
+      })),
+    [revenueByDay]
+  );
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayRevenue = revenueByDay.find((d) => d.date === todayKey)?.revenue ?? 0;
+  const totalOrders = countableOrders.length;
   const averageOrder = totalOrders ? Math.round(totalRevenue / totalOrders) : 0;
 
   // Real per-product performance, aggregated straight from actual order line items
   // (not sample/mock data) — sold quantity, revenue, and order count all come from allOrders.
   const realProductPerformance = useMemo<RealProductPerformance[]>(() => {
     const map = new Map<string, RealProductPerformance>();
-    allOrders.forEach((order) => {
+    countableOrders.forEach((order) => {
       const seenInThisOrder = new Set<string>();
       (order.items ?? []).forEach((item) => {
         const entry = map.get(item.productId) ?? {
@@ -46,7 +92,7 @@ export default function AdminRevenuePage() {
       });
     });
     return Array.from(map.values()).sort((a, b) => b.totalRevenue - a.totalRevenue);
-  }, [allOrders]);
+  }, [countableOrders]);
 
   const viewsByProduct = useMemo(() => {
     const map = new Map<string, number>();
@@ -72,7 +118,7 @@ export default function AdminRevenuePage() {
           <p className="text-3xl font-mono font-black text-brand-fb">{todayRevenue.toLocaleString("vi-VN")}đ</p>
         </div>
         <div className="bg-brand-card rounded-3xl border border-brand-primary/10 p-5 shadow-sm">
-          <div className="flex items-center gap-2 text-brand-primary font-semibold text-xs uppercase tracking-[0.25em] mb-3"><BarChart3 size={16} /> Tổng đơn hàng</div>
+          <div className="flex items-center gap-2 text-brand-primary font-semibold text-xs uppercase tracking-[0.25em] mb-3"><BarChart3 size={16} /> Đơn hợp lệ (đã thu tiền)</div>
           <p className="text-3xl font-mono font-black text-brand-fb">{totalOrders}</p>
         </div>
         <div className="bg-brand-card rounded-3xl border border-brand-primary/10 p-5 shadow-sm">

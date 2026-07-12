@@ -171,6 +171,26 @@ export interface LoggedOrder {
   paymentMethod?: "cod" | "banking" | "vietqr" | "momo";
   note?: string;
   items?: OrderItemDetail[];
+  // Vòng đời thanh toán — đơn cũ thiếu field này được hiểu là "unpaid" (?? "unpaid")
+  paymentStatus?: "unpaid" | "pending_confirmation" | "paid" | "refunded";
+  paymentReportedAt?: string; // ISO — khách bấm "Tôi đã chuyển khoản"
+  paidAt?: string;            // ISO — shop xác nhận đã nhận tiền
+  refundedAt?: string;        // ISO
+  updatedAt?: string;         // ISO — lần cập nhật gần nhất
+}
+
+// Thông báo cho shop (collection shopNotifications) — khách báo chuyển khoản
+export interface ShopNotification {
+  id: string;
+  type: "payment_reported";
+  orderId: string;
+  orderCode: string;
+  userId: string;
+  customerName: string;
+  amount: number;
+  read: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface OrderItemDetail {

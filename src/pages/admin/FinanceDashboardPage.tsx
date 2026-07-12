@@ -1,39 +1,65 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { TrendingUp, CreditCard, XCircle, Wallet, PieChart, Coins, FileWarning, CheckCircle2 } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import { useAdminAuth } from "../../context/AdminAuthContext";
 import { getRefundRequests, processRefundLocal } from "../../data/staff.mock";
+import { subscribeToAllOrdersForAdmin } from "../../lib/firestoreOrdersAdmin";
+import type { LoggedOrder } from "../../types";
 
 export default function FinanceDashboardPage() {
-  const { revenueData, allOrders, currentUser } = useApp();
+  const { allOrders, currentUser } = useApp();
   const { staff, can } = useAdminAuth();
   const [refunds, setRefunds] = useState(() => getRefundRequests());
   const [reasonDraft, setReasonDraft] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
 
-  const todayRevenue = revenueData[revenueData.length - 1]?.revenue ?? 0;
-  const monthRevenue = useMemo(() => {
-    const last = revenueData[revenueData.length - 1];
-    if (!last) return 0;
-    const month = last.date.slice(0, 7);
-    return revenueData.filter((d) => d.date.startsWith(month)).reduce((s, d) => s + d.revenue, 0);
-  }, [revenueData]);
+  // Số liệu tài chính tính từ đơn Firestore THẬT (không dùng sample revenueData)
+  const [firestoreOrders, setFirestoreOrders] = useState<LoggedOrder[]>([]);
+  useEffect(() => subscribeToAllOrdersForAdmin(setFirestoreOrders), []);
+  const sourceOrders = firestoreOrders.length > 0 ? firestoreOrders : allOrders;
 
-  const paymentSuccess = allOrders.filter((o) => o.status !== "Đã hủy" && o.status !== "Chờ xác nhận").length;
-  const paymentFailed = allOrders.filter((o) => o.status === "Đã hủy").length;
+  // Đơn tính doanh thu: online paid hoặc COD hoàn tất; loại hủy/unpaid/pending/refunded
+  const countableOrders = useMemo(
+    () =>
+      sourceOrders.filter((o) => {
+        if (o.status === "Đã hủy") return false;
+        const ps = o.paymentStatus ?? "unpaid";
+        if (ps === "refunded") return false;
+        if (ps === "paid") return true;
+        return (o.paymentMethod ?? "cod") === "cod" && o.status === "Hoàn tất";
+      }),
+    [sourceOrders]
+  );
+
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const monthKey = todayKey.slice(0, 7);
+  const revenueDateOf = (o: LoggedOrder) => (o.paidAt ?? o.time).slice(0, 10);
+  const todayRevenue = useMemo(
+    () => countableOrders.filter((o) => revenueDateOf(o) === todayKey).reduce((s, o) => s + o.totalPrice, 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [countableOrders]
+  );
+  const monthRevenue = useMemo(
+    () => countableOrders.filter((o) => revenueDateOf(o).startsWith(monthKey)).reduce((s, o) => s + o.totalPrice, 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [countableOrders]
+  );
+
+  const paymentSuccess = countableOrders.length;
+  const paymentFailed = sourceOrders.filter((o) => o.status === "Đã hủy").length;
   const pendingRefunds = refunds.filter((r) => r.status === "requested" || r.status === "reviewing");
   const completedRefunds = refunds.filter((r) => r.status === "completed");
-  const totalDiscount = allOrders.reduce((s, o) => s + (o.discountApplied || 0), 0);
-  const totalCoinsUsed = allOrders.reduce((s, o) => s + (o.coinsUsed || 0), 0);
+  const totalDiscount = sourceOrders.reduce((s, o) => s + (o.discountApplied || 0), 0);
+  const totalCoinsUsed = sourceOrders.reduce((s, o) => s + (o.coinsUsed || 0), 0);
 
   const byPaymentMethod = useMemo(() => {
     const map = new Map<string, number>();
-    allOrders.forEach((o) => {
+    countableOrders.forEach((o) => {
       const method = o.paymentMethod || "cod";
       map.set(method, (map.get(method) || 0) + o.totalPrice);
     });
     return Array.from(map.entries());
-  }, [allOrders]);
+  }, [countableOrders]);
 
   const cards = [
     { label: "Doanh thu hôm nay", value: `${todayRevenue.toLocaleString("vi-VN")}đ`, icon: TrendingUp },

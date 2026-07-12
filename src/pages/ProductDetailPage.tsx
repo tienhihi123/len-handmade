@@ -9,6 +9,8 @@ import { useApp } from "../context/AppContext";
 import { Product, CartItem, Review } from "../types";
 import SafeImage from "../components/SafeImage";
 import { usePageSeo } from "../hooks/usePageSeo";
+import { productSeoTitle, productSeoDescription, buildProductJsonLd, buildBreadcrumbJsonLd } from "../utils/seo";
+import { recordRecentlyViewed, getRecentlyViewedIds } from "../utils/recentlyViewed";
 import { calculateItemPrice, parseSizeModifier } from "../utils/pricing";
 import { BRAND_NAME } from "../constants/brand";
 import { isFirebaseConfigured } from "../lib/firebase";
@@ -27,8 +29,23 @@ export default function ProductDetailPage() {
   const product = productsList.find(p => p.id === id);
 
   usePageSeo(
-    product ? `${product.name} | ${BRAND_NAME}` : `Sản phẩm | ${BRAND_NAME}`,
-    product?.description || "Khám phá sản phẩm len handmade được làm thủ công tỉ mỉ."
+    product ? productSeoTitle(product) : `Sản phẩm | ${BRAND_NAME}`,
+    product ? productSeoDescription(product) : "Khám phá sản phẩm len handmade được làm thủ công tỉ mỉ.",
+    product
+      ? {
+          canonicalPath: `/products/${product.id}`,
+          image: product.image,
+          type: "product",
+          jsonLd: [
+            buildProductJsonLd(product),
+            buildBreadcrumbJsonLd([
+              { name: "Trang chủ", path: "/" },
+              { name: "Sản phẩm", path: "/products" },
+              { name: product.name, path: `/products/${product.id}` }
+            ])
+          ]
+        }
+      : undefined
   );
 
   // States for interactive custom styles
@@ -49,6 +66,7 @@ export default function ProductDetailPage() {
   useEffect(() => {
     if (product) {
       trackView(product.id, product.name, product.category);
+      recordRecentlyViewed(product.id);
       
       // Load default options from data structure, prioritizing pre-selected color from navigation state
       const stateColor = location.state?.selectedColor;
@@ -227,6 +245,13 @@ export default function ProductDetailPage() {
 
   // 3 related products
   const relatedProducts = productsList.filter(p => p.category === product.category && p.id !== product.id).slice(0, 3);
+
+  // Sản phẩm đã xem gần đây (localStorage, bỏ sản phẩm hiện tại)
+  const recentlyViewedProducts = getRecentlyViewedIds()
+    .filter(rid => rid !== product.id)
+    .map(rid => productsList.find(p => p.id === rid))
+    .filter((p): p is Product => !!p)
+    .slice(0, 6);
 
   return (
     <div className="bg-brand-bg min-h-screen pt-32 pb-24 px-4 text-left">
@@ -610,6 +635,42 @@ export default function ProductDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* RECENTLY VIEWED */}
+        {recentlyViewedProducts.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.5 }}
+            className="mt-16 space-y-6"
+          >
+            <h2 className="font-serif font-bold text-xl text-brand-fb text-left border-b border-brand-primary/10 pb-4 flex items-center gap-2">
+              <Eye size={18} className="text-brand-primary" /> Bạn đã xem gần đây
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+              {recentlyViewedProducts.map((prod) => (
+                <Link
+                  key={prod.id}
+                  to={`/products/${prod.id}`}
+                  className="group bg-white rounded-xl border border-brand-primary/10 overflow-hidden hover:border-brand-primary/30 hover:shadow-md transition-all"
+                >
+                  <div className="aspect-square overflow-hidden bg-brand-bg">
+                    <SafeImage
+                      src={prod.image}
+                      alt={prod.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                  </div>
+                  <div className="p-3 space-y-1">
+                    <p className="font-sans text-xs font-semibold text-brand-fb truncate">{prod.name}</p>
+                    <p className="font-mono text-xs font-bold text-brand-primary">{prod.price.toLocaleString("vi-VN")}đ</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </motion.div>
+        )}
 
         {/* RELATED PRODUCTS */}
         {relatedProducts.length > 0 && (

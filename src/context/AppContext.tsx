@@ -12,6 +12,7 @@ import { subscribeToCategories, upsertCategory } from "../lib/categoryService";
 import { subscribeToProducts, upsertProduct, updateProductFields } from "../lib/productService";
 import { subscribeToVariants, upsertVariant } from "../lib/variantService";
 import { subscribeToInventoryTransactions, adjustVariantStock as firestoreAdjustStock } from "../lib/inventoryService";
+import { subscribeToUserOrders } from "../lib/firestoreOrders";
 import { 
   UserRole, UserActivityLog, ProductViewStats, Coupon, Mission, Banner, MarketingArticle,
   demoUsers, coupons as initialCoupons, missions as initialMissions, banners as initialBanners, 
@@ -110,6 +111,7 @@ interface AppContextType {
   allOrders: LoggedOrder[];
   updateOrderStatus: (orderId: string, newStatus: LoggedOrder["status"]) => void;
   refreshOrders: () => void;
+  ordersLoading: boolean;
 
   // Utilities
   hasPermission: (permission: string) => boolean;
@@ -240,6 +242,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (saved) return JSON.parse(saved);
     return [];
   });
+
+  // Đơn hàng của khách — SUBSCRIBE FIRESTORE REAL-TIME (source of truth khi
+  // Firebase đã cấu hình). Admin đổi trạng thái → khách thấy ngay không cần reload.
+  const [ordersLoading, setOrdersLoading] = useState<boolean>(isFirebaseConfigured);
+  useEffect(() => {
+    if (!isFirebaseConfigured || !currentUser) {
+      setOrdersLoading(false);
+      return;
+    }
+    setOrdersLoading(true);
+    const unsubscribe = subscribeToUserOrders(
+      currentUser.id,
+      (remoteOrders) => {
+        setOrdersList(remoteOrders);
+        setOrdersLoading(false);
+      },
+      () => setOrdersLoading(false)
+    );
+    return unsubscribe;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
 
   const isFirstRender = useRef(true);
 
@@ -733,11 +756,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const revenueData = SAMPLE_REVENUE_DATA;
   const topProducts = SAMPLE_TOP_PRODUCTS;
 
-  // Global all orders: combine user session orders + sample orders (no duplicates)
-  const allOrders = [
-    ...ordersList,
-    ...SAMPLE_ORDERS.filter(s => !ordersList.some(o => o.id === s.id))
-  ];
+  // Global all orders — khi Firebase đã cấu hình thì CHỈ dùng đơn thật từ
+  // Firestore; SAMPLE_ORDERS chỉ là fallback demo khi chưa cấu hình Firebase.
+  const allOrders = isFirebaseConfigured
+    ? ordersList
+    : [
+        ...ordersList,
+        ...SAMPLE_ORDERS.filter(s => !ordersList.some(o => o.id === s.id))
+      ];
 
   // Update order status across all orders (handles both user orders and sample orders)
   const updateOrderStatus = (orderId: string, newStatus: LoggedOrder["status"]) => {
@@ -844,6 +870,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         allOrders,
         updateOrderStatus,
         refreshOrders,
+        ordersLoading,
 
         hasPermission
       }}

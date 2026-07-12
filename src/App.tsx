@@ -127,23 +127,23 @@ export default function App() {
       {/* Primary site content routing block */}
       <main className="flex-grow">
         <Routes>
-          <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
-          <Route path="/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
-          <Route path="/products/:id" element={<ProtectedRoute><ProductDetailPage /></ProtectedRoute>} />
-          <Route path="/product/:id" element={<ProtectedRoute><ProductDetailPage /></ProtectedRoute>} />
+          <Route path="/" element={<HomePage />} />
+          <Route path="/products" element={<ProductsPage />} />
+          <Route path="/products/:id" element={<ProductDetailPage />} />
+          <Route path="/product/:id" element={<ProductDetailPage />} />
           <Route path="/favorites" element={<ProtectedRoute><FavoritesPage /></ProtectedRoute>} />
           <Route path="/cart" element={<ProtectedRoute><CartPage /></ProtectedRoute>} />
           <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
           <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
           <Route path="/returns" element={<ProtectedRoute><ReturnsPage /></ProtectedRoute>} />
-          <Route path="/contact" element={<ProtectedRoute><ContactPage /></ProtectedRoute>} />
-          <Route path="/about" element={<ProtectedRoute><AboutPage /></ProtectedRoute>} />
-          <Route path="/gioi-thieu" element={<ProtectedRoute><AboutPage /></ProtectedRoute>} />
-          <Route path="/blog" element={<ProtectedRoute><BlogPage /></ProtectedRoute>} />
-          <Route path="/blog/:slug" element={<ProtectedRoute><BlogDetailPage /></ProtectedRoute>} />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/gioi-thieu" element={<AboutPage />} />
+          <Route path="/blog" element={<BlogPage />} />
+          <Route path="/blog/:slug" element={<BlogDetailPage />} />
           <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/track-order" element={<ProtectedRoute><TrackOrderPage /></ProtectedRoute>} />
+          <Route path="/track-order" element={<TrackOrderPage />} />
           <Route path="/order-success" element={<ProtectedRoute><OrderSuccessPage /></ProtectedRoute>} />
           <Route path="/unauthorized" element={<UnauthorizedPage />} />
         </Routes>

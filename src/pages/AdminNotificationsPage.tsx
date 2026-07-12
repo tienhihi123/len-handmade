@@ -1,9 +1,27 @@
-import { useMemo } from "react";
-import { Bell, Inbox, CheckCircle2, XCircle, Mail } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Bell, Inbox, CheckCircle2, Mail, Banknote } from "lucide-react";
 import { useApp } from "../context/AppContext";
+import { subscribeToShopNotifications, markShopNotificationRead } from "../lib/firestoreOrdersAdmin";
+import type { ShopNotification } from "../types";
 
 export default function AdminNotificationsPage() {
   const { notificationsList } = useApp();
+  const navigate = useNavigate();
+
+  // Thông báo khách báo chuyển khoản — real-time từ Firestore (shopNotifications)
+  const [shopNotifications, setShopNotifications] = useState<ShopNotification[]>([]);
+  useEffect(() => subscribeToShopNotifications(setShopNotifications), []);
+  const unreadCount = useMemo(() => shopNotifications.filter((n) => !n.read).length, [shopNotifications]);
+
+  const handleOpenShopNotification = (notification: ShopNotification) => {
+    if (!notification.read) {
+      void markShopNotificationRead(notification.id).catch((error) => {
+        console.warn("[AdminNotifications] Đánh dấu đã đọc thất bại", error);
+      });
+    }
+    navigate("/admin/orders");
+  };
 
   const sortedNotifications = useMemo(
     () => [...notificationsList].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
@@ -16,6 +34,54 @@ export default function AdminNotificationsPage() {
         <span className="text-[10px] uppercase tracking-[0.3em] text-brand-primary font-semibold">Thông báo đơn hàng</span>
         <h1 className="font-serif text-3xl font-black text-brand-fb">Bảng thông báo giao dịch</h1>
         <p className="text-sm text-brand-fb/70 max-w-2xl">Xem các tin nhắn hệ thống đã gửi khách hàng, kênh email và trạng thái thông báo.</p>
+      </div>
+
+      {/* Khách báo chuyển khoản — cần shop kiểm tra tài khoản và xác nhận */}
+      <div className="bg-brand-card rounded-3xl border border-brand-primary/10 p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3 text-brand-primary">
+            <Banknote size={18} />
+            <p className="text-xs uppercase tracking-[0.25em] font-semibold">Khách báo chuyển khoản</p>
+          </div>
+          {unreadCount > 0 && (
+            <span className="rounded-full bg-gold/25 px-3 py-1 text-[11px] font-bold text-brand-fb animate-pulse">
+              {unreadCount} chưa xử lý
+            </span>
+          )}
+        </div>
+        {shopNotifications.length === 0 ? (
+          <p className="text-sm text-brand-fb/50 italic py-4 text-center">
+            Chưa có thông báo chuyển khoản nào. Khi khách bấm "Tôi đã chuyển khoản", thông báo sẽ hiện tại đây theo thời gian thực.
+          </p>
+        ) : (
+          <div className="space-y-2 max-h-[320px] overflow-y-auto">
+            {shopNotifications.map((notification) => (
+              <button
+                key={notification.id}
+                onClick={() => handleOpenShopNotification(notification)}
+                className={`w-full flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition cursor-pointer ${
+                  notification.read
+                    ? "bg-white border-brand-primary/10 hover:bg-brand-bg/60"
+                    : "bg-gold/10 border-gold/40 hover:bg-gold/20"
+                }`}
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-brand-fb truncate">
+                    {notification.customerName} báo đã chuyển {notification.amount.toLocaleString("vi-VN")}đ
+                  </p>
+                  <p className="text-[11px] text-brand-fb/60 font-mono">
+                    Đơn {notification.orderCode} · {new Date(notification.updatedAt).toLocaleString("vi-VN")}
+                  </p>
+                </div>
+                <span className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-bold ${
+                  notification.read ? "bg-divider-beige text-brand-fb/60" : "bg-brand-primary text-white"
+                }`}>
+                  {notification.read ? "Đã xử lý" : "Xem đơn →"}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -7,6 +7,7 @@ import {
 import { LoggedOrder } from "../types";
 import { SAMPLE_ORDERS } from "../data/sampleData";
 import { useApp } from "../context/AppContext";
+import { isFirebaseConfigured } from "../lib/firebase";
 
 // All order statuses & their config
 const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string; icon: any; step: number; percent: number }> = {
@@ -37,10 +38,13 @@ export default function TrackOrderPage() {
   const { ordersList } = useApp();
 
   // Combine global orders + sample orders (deduplicate)
-  const allOrders = [
-    ...ordersList,
-    ...SAMPLE_ORDERS.filter(s => !ordersList.some(o => o.id === s.id))
-  ];
+  // SAMPLE_ORDERS chỉ dùng demo khi Firebase chưa cấu hình — production tra cứu đơn thật
+  const allOrders = isFirebaseConfigured
+    ? ordersList
+    : [
+        ...ordersList,
+        ...SAMPLE_ORDERS.filter(s => !ordersList.some(o => o.id === s.id))
+      ];
 
   const [searchType, setSearchType] = useState<"code" | "phone">("code");
   const [searchInput, setSearchInput] = useState("");

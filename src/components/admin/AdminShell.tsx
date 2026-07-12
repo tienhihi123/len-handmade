@@ -9,7 +9,8 @@ import { useApp } from "../../context/AppContext";
 import { useAdminAuth } from "../../context/AdminAuthContext";
 import { PermissionKey, STAFF_ROLE_DASHBOARD_PATH, STAFF_ROLE_LABELS } from "../../lib/permissions";
 import { subscribeToTicketsForAdmin } from "../../lib/firestoreTickets";
-import type { SupportTicket } from "../../types";
+import { subscribeToShopNotifications, markShopNotificationRead } from "../../lib/firestoreOrdersAdmin";
+import type { SupportTicket, ShopNotification } from "../../types";
 import sidebarBrandArt from "../../assets/images/That one Evernight Dance  _ Honkai star rail animation _ Honkai star rail Edit _.jpeg";
 
 interface AdminModule {
@@ -121,7 +122,12 @@ export default function AdminShell() {
     () => tickets.filter((t) => t.createdAt > lastSeenTicketsAt).slice(0, 5),
     [tickets, lastSeenTicketsAt]
   );
-  const totalAlertCount = pendingNotifications.length + newTickets.length;
+  // Khách báo chuyển khoản — real-time từ Firestore, đếm vào chuông
+  const [shopNotifications, setShopNotifications] = useState<ShopNotification[]>([]);
+  useEffect(() => subscribeToShopNotifications(setShopNotifications), []);
+  const unreadPaymentReports = useMemo(() => shopNotifications.filter((n) => !n.read), [shopNotifications]);
+
+  const totalAlertCount = pendingNotifications.length + newTickets.length + unreadPaymentReports.length;
   const markTicketsSeen = () => localStorage.setItem(TICKETS_LAST_SEEN_KEY, new Date().toISOString());
 
   const filteredSearchResults = useMemo(() => {
@@ -347,6 +353,35 @@ export default function AdminShell() {
                 </button>
                 {notifOpen && (
                   <div className="absolute top-full mt-2 right-0 w-[320px] max-w-[85vw] bg-white border border-[#CEAF75]/10 rounded-2xl shadow-lg overflow-hidden z-20">
+                    {unreadPaymentReports.length > 0 && (
+                      <div className="border-b border-[#CEAF75]/10">
+                        <div className="px-4 py-3 flex items-center justify-between">
+                          <p className="text-xs font-bold uppercase tracking-wide">💰 Khách báo chuyển khoản</p>
+                          <span className="text-[10px] font-bold text-[#BA1A1A]">{unreadPaymentReports.length} chưa xử lý</span>
+                        </div>
+                        <div className="max-h-[180px] overflow-y-auto">
+                          {unreadPaymentReports.slice(0, 5).map((n) => (
+                            <button
+                              key={n.id}
+                              onClick={() => {
+                                setNotifOpen(false);
+                                void markShopNotificationRead(n.id).catch((error) => {
+                                  console.warn("[AdminShell] Đánh dấu đã đọc thất bại", error);
+                                });
+                                navigate("/admin/orders");
+                              }}
+                              className="w-full px-4 py-2.5 border-t border-[#CEAF75]/5 first:border-0 text-left hover:bg-[#FAF6F0] transition cursor-pointer"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[11px] font-bold truncate">{n.customerName}</span>
+                                <span className="text-[9px] text-[#412C20]/40 font-mono shrink-0">{n.amount.toLocaleString("vi-VN")}đ</span>
+                              </div>
+                              <p className="text-[11px] text-[#412C20]/70 mt-0.5 line-clamp-1">Đơn {n.orderCode} — kiểm tra tài khoản rồi xác nhận</p>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {newTickets.length > 0 && (
                       <div className="border-b border-[#CEAF75]/10">
                         <div className="px-4 py-3 flex items-center justify-between">

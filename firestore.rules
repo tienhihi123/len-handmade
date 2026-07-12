@@ -82,6 +82,14 @@ service cloud.firestore {
         || incoming().status in allowedNextStatuses(existing().status);
     }
 
+    // Khách báo "Tôi đã chuyển khoản": CHỈ được đổi đúng 3 field, và chỉ được
+    // đi từ unpaid -> pending_confirmation (đơn cũ thiếu field hiểu là unpaid).
+    function isCustomerPaymentReport() {
+      return incoming().diff(existing()).affectedKeys().hasOnly(['paymentStatus', 'paymentReportedAt', 'updatedAt'])
+        && existing().get('paymentStatus', 'unpaid') == 'unpaid'
+        && incoming().paymentStatus == 'pending_confirmation';
+    }
+
     // ---------------- users/{uid} (storefront customers) ----------------
     function isValidUser(data) {
       return data.keys().hasAll(['id', 'name', 'email', 'role', 'status'])
@@ -100,13 +108,14 @@ service cloud.firestore {
       match /wishlist/{productId} { allow read, write: if isOwner(userId); }
       match /orders/{orderId} {
         allow read: if isOwner(userId) || canReadOrdersBroad();
-        allow create: if isOwner(userId);
-        // Staff-side status updates: LoggedOrder.status uses Vietnamese
-        // free-text values that don't map onto the allowedNextStatuses()
-        // state machine (designed for the separate OrderStatusV2 enum),
-        // so the transition graph isn't enforced here. Intentionally
-        // permissive until the two status models are unified.
-        allow update: if isOwner(userId) ? incoming().status == existing().status : canReadOrdersBroad();
+        // Đơn mới phải thuộc đúng chủ và bắt đầu ở trạng thái chưa thanh toán
+        allow create: if isOwner(userId)
+          && incoming().userId == userId
+          && incoming().get('paymentStatus', 'unpaid') == 'unpaid';
+        // Khách CHỈ được thực hiện transition "báo đã chuyển khoản" — không sửa
+        // items/total/status/userId. Staff-side dùng status tiếng Việt tự do
+        // (transition graph V2 chưa áp dụng — xem ghi chú allowedNextStatuses).
+        allow update: if (isOwner(userId) && isCustomerPaymentReport()) || canReadOrdersBroad();
         allow delete: if isAdmin();
       }
     }
@@ -157,7 +166,20 @@ service cloud.firestore {
     // ---------------- productVariants/{id} ----------------
     match /productVariants/{variantId} {
       allow read: if true; // public storefront (client filters by product status)
-      allow write: if canManageCatalog();
+      allow create, delete: if canManageCatalog();
+      // update: catalog team toàn quyền; staff active chỉnh stock (hoàn kho khi
+      // hủy đơn); KHÁCH chỉ được GIẢM stockQuantity (trừ kho lúc checkout) và
+      // chỉ trong 3 field stock/status/updatedAt — không sửa giá hay thông tin khác.
+      allow update: if canManageCatalog()
+        || (isAnyActiveStaff()
+            && incoming().diff(existing()).affectedKeys().hasOnly(['stockQuantity', 'status', 'updatedAt']))
+        || (
+          isSignedIn()
+          && incoming().diff(existing()).affectedKeys().hasOnly(['stockQuantity', 'status', 'updatedAt'])
+          && incoming().stockQuantity is int
+          && incoming().stockQuantity >= 0
+          && incoming().stockQuantity < existing().stockQuantity
+        );
     }
 
     // ---------------- inventory ----------------
@@ -173,20 +195,48 @@ service cloud.firestore {
 
     match /inventoryTransactions/{id} {
       allow read: if isAdmin() || isProductManager() || isStoreManager() || isAuditor();
-      allow create: if isAdmin() || isProductManager();
+      // Khách chỉ được ghi log 'sale' (đi kèm transaction trừ kho lúc checkout);
+      // staff active ghi log vận hành (restock/return/adjustment).
+      allow create: if isAnyActiveStaff() || (isSignedIn() && incoming().changeType == 'sale');
       allow update, delete: if false; // append-only ledger
     }
 
-    // ---------------- orders (top-level mirror for staff-side queries) ----------------
+    // ---------------- orders (top-level, ghi song song với users/{uid}/orders) ----------------
+    // Checkout client ghi đồng thời cả hai nơi trong một transaction. Khách chỉ
+    // được tạo/đọc/báo-chuyển-khoản đơn CỦA MÌNH; staff đọc và vận hành mọi đơn.
+    // Lưu ý: status dùng giá trị tiếng Việt hiện có của LoggedOrder — transition
+    // graph allowedNextStatuses() (OrderStatusV2) chưa áp dụng cho model này.
     match /orders/{orderId} {
-      allow read: if canReadOrdersBroad();
-      allow create: if false; // orders are created via users/{uid}/orders, mirrored server-side
-      allow update: if canReadOrdersBroad() && isValidOrderTransition() && (
-        isAdmin() ||
-        (isOrderOps() && incoming().status in ['payment_confirmed', 'processing', 'ready_to_ship', 'shipping', 'cancel_requested']) ||
-        (isStoreManager() && incoming().status in ['processing', 'ready_to_ship'])
-      );
+      allow read: if canReadOrdersBroad() || (isSignedIn() && existing().userId == request.auth.uid);
+      allow create: if isSignedIn()
+        && incoming().userId == request.auth.uid
+        && incoming().get('paymentStatus', 'unpaid') == 'unpaid';
+      allow update: if (
+          isSignedIn()
+          && existing().userId == request.auth.uid
+          && incoming().userId == existing().userId
+          && isCustomerPaymentReport()
+        ) || canReadOrdersBroad();
       allow delete: if false;
+    }
+
+    // ---------------- shopNotifications — khách báo chuyển khoản cho shop ----------------
+    // Document ID xác định: payment_reported_{orderId} — không thể spam trùng.
+    // Khách chỉ tạo/cập nhật notification cho ĐƠN CỦA MÌNH, amount phải khớp
+    // totalPrice của đơn, luôn read == false (chỉ staff được đánh dấu đã đọc).
+    match /shopNotifications/{notificationId} {
+      allow read: if isAnyActiveStaff();
+      allow create, update: if isAnyActiveStaff()
+        || (
+          isSignedIn()
+          && incoming().type == 'payment_reported'
+          && incoming().userId == request.auth.uid
+          && incoming().read == false
+          && notificationId == 'payment_reported_' + incoming().orderId
+          && get(/databases/$(database)/documents/orders/$(incoming().orderId)).data.userId == request.auth.uid
+          && incoming().amount == get(/databases/$(database)/documents/orders/$(incoming().orderId)).data.totalPrice
+        );
+      allow delete: if isAdmin();
     }
 
     // ---------------- payments — Cloud Functions only ----------------

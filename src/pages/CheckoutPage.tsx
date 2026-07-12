@@ -2,10 +2,12 @@ import React, { useState } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { ShieldCheck, HelpCircle, Tag, Sparkles, CreditCard, ShoppingBag, Eye, Banknote, QrCode, Wallet, Landmark, Clock } from "lucide-react";
 import { useApp } from "../context/AppContext";
-import { OrderItemDetail } from "../types";
+import { LoggedOrder, OrderItemDetail } from "../types";
 import { calculateItemPrice, calculateCartTotal } from "../utils/pricing";
 import { buildVietQrImageUrl, buildMomoQrImageUrl, getBankQrInfo, getMomoPhone, paymentGateways } from "../lib/payments";
-import { mirrorOrderToFirestore } from "../lib/firestoreOrders";
+import { createOrderInFirestore, OrderCreationError } from "../lib/firestoreOrders";
+import { sendOrderConfirmationEmail, sendShopNewOrderEmail } from "../lib/emailService";
+import { isFirebaseConfigured } from "../lib/firebase";
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
@@ -36,6 +38,11 @@ export default function CheckoutPage() {
 
   // Coins checking variables
   const [useCoins, setUseCoins] = useState(false);
+
+  // Chống double-submit + hiển thị lỗi đặt hàng
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [orderPlaced, setOrderPlaced] = useState(false);
+  const [orderError, setOrderError] = useState("");
 
   function generateOrderId(): string {
     try {
@@ -118,9 +125,13 @@ export default function CheckoutPage() {
   const maxCoinsApplied = useCoins ? Math.min(coinsWallet, cartTotal - discountVal) : 0;
   const finalBillTotal = Math.max(0, cartTotal - discountVal - maxCoinsApplied);
 
-  const handlePlaceOrder = (e: React.FormEvent) => {
+  const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName.trim() || !phone.trim() || !address.trim() || !email.trim()) return;
+    // Chống double-click và chống tạo lại đơn sau khi đã thành công
+    if (isSubmitting || orderPlaced) return;
+    setIsSubmitting(true);
+    setOrderError("");
 
     // Summary of products representation text
     const namesRep = cart.map(i => `${i.product.name} (x${i.quantity})`).join(", ");
@@ -140,7 +151,7 @@ export default function CheckoutPage() {
       };
     });
 
-    const newOrder = {
+    const newOrder: LoggedOrder = {
       id: tempOrderId,
       orderCode: `LH-${new Date().toISOString().slice(0,10).replace(/-/g,"")}-${String(Math.floor(Math.random()*900)+100)}`,
       name: namesRep,
@@ -156,16 +167,38 @@ export default function CheckoutPage() {
       coinsUsed: maxCoinsApplied,
       paymentMethod,
       note: embroideryText || undefined,
-      items: orderItems
+      items: orderItems,
+      paymentStatus: "unpaid",
+      updatedAt: new Date().toISOString()
     };
+
+    // Tạo đơn + trừ tồn kho trong CÙNG transaction (orders + users/{uid}/orders).
+    // Transaction fail → không ghi đơn, không trừ kho, không xóa giỏ, không email.
+    if (isFirebaseConfigured && currentUser) {
+      try {
+        await createOrderInFirestore(currentUser.id, newOrder);
+      } catch (error) {
+        console.warn("[Checkout] Tạo đơn thất bại:", error);
+        setOrderError(
+          error instanceof OrderCreationError
+            ? error.message
+            : "Không thể tạo đơn hàng lúc này. Bạn vui lòng kiểm tra kết nối và thử lại nhé."
+        );
+        setIsSubmitting(false);
+        return;
+      }
+      // Email fire-and-forget — lỗi email không rollback đơn hàng
+      void sendOrderConfirmationEmail(newOrder).catch((error) => {
+        console.warn("[emailService] Email xác nhận cho khách thất bại", error);
+      });
+      void sendShopNewOrderEmail(newOrder).catch((error) => {
+        console.warn("[emailService] Email báo shop thất bại", error);
+      });
+    }
+    setOrderPlaced(true);
 
     // Store into shared AppContext state
     setOrdersList(prev => [newOrder, ...prev]);
-
-    // Best-effort mirror to Firestore for signed-in users (no-op if unavailable)
-    if (currentUser) {
-      mirrorOrderToFirestore(currentUser.id, newOrder);
-    }
 
     // Deduct coins from balance if applied
     if (maxCoinsApplied > 0) {
@@ -400,12 +433,19 @@ export default function CheckoutPage() {
                 </div>
               )}
 
+              {orderError && (
+                <div className="rounded-xl border border-[#ba1a1a]/20 bg-[#ba1a1a]/5 px-4 py-3 text-sm text-[#ba1a1a] font-sans">
+                  {orderError}
+                </div>
+              )}
+
               <button
                 type="submit"
-                className="w-full bg-brand-primary hover:bg-brand-primary/90 text-white text-sm lg:text-base font-medium uppercase tracking-wider min-h-11 px-4 py-2.5 rounded-xl shadow-sm transition-colors duration-200 cursor-pointer flex items-center justify-center gap-2"
+                disabled={isSubmitting}
+                className="w-full bg-brand-primary hover:bg-brand-primary/90 text-white text-sm lg:text-base font-medium uppercase tracking-wider min-h-11 px-4 py-2.5 rounded-xl shadow-sm transition-colors duration-200 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <ShieldCheck size={14} />
-                Hoàn Thành Khâu Dệt Đặt Hàng - {(finalBillTotal).toLocaleString("vi-VN")}đ
+                <ShieldCheck size={14} className={isSubmitting ? "animate-spin" : ""} />
+                {isSubmitting ? "Đang tạo đơn hàng..." : `Hoàn Thành Khâu Dệt Đặt Hàng - ${(finalBillTotal).toLocaleString("vi-VN")}đ`}
               </button>
             </form>
           </div>
