@@ -156,11 +156,26 @@ service cloud.firestore {
       allow delete: if false;
 
       match /reviews/{reviewId} {
-        allow read: if existing().status == 'approved' || isAdmin() || isReviewMod() || (isSignedIn() && existing().userId == request.auth.uid);
+        // Đọc: xem match /{path=**}/reviews/{reviewId} riêng bên dưới (bắt buộc
+        // dùng recursive wildcard để collectionGroup("reviews") — dùng bởi
+        // "Đánh giá của tôi" — được Firestore chứng minh an toàn ở mọi productId,
+        // không chỉ path cụ thể này).
         allow create: if isSignedIn() && incoming().userId == request.auth.uid && incoming().status == 'pending';
         allow update: if isAdmin() || isReviewMod();
         allow delete: if isAdmin() || isReviewMod();
       }
+    }
+
+    // ---------------- reviews (collection group đọc) ----------------
+    // collectionGroup("reviews") (dùng bởi subscribeToMyReviews — tab "Đánh giá
+    // của tôi", đọc mọi sản phẩm cùng lúc) cần rule khai báo bằng recursive
+    // wildcard match /{path=**}/... để Firestore chứng minh mọi document trong
+    // collection group đều thoả rule, bất kể nằm dưới productId nào. Rule lồng
+    // cố định products/{productId}/reviews/{reviewId} chỉ áp dụng cho query trực
+    // tiếp subcollection (biết trước productId), KHÔNG tự động mở rộng cho
+    // collection-group "list" — đây chính là nguyên nhân permission-denied.
+    match /{path=**}/reviews/{reviewId} {
+      allow read: if existing().status == 'approved' || isAdmin() || isReviewMod() || (isSignedIn() && existing().userId == request.auth.uid);
     }
 
     // ---------------- productVariants/{id} ----------------

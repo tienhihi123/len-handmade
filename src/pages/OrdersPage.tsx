@@ -1,39 +1,102 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion } from "motion/react";
-import { 
-  Package, Truck, CheckCircle2, Clock, MapPin, Navigation, Info, AlertCircle, 
-  ArrowRight, ShieldCheck, ChevronDown, ChevronUp, RotateCcw 
+import {
+  Package, Truck, CheckCircle2, Clock, MapPin, Navigation, Info, AlertCircle,
+  ArrowRight, ShieldCheck, ChevronDown, ChevronUp, RotateCcw, ShoppingBag
 } from "lucide-react";
 import { useApp } from "../context/AppContext";
+import type { CartItem, LoggedOrder } from "../types";
+
+const PLACEHOLDER_IMAGE = "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=150";
 
 export default function OrdersPage() {
   const navigate = useNavigate();
-  const { ordersList, currentUser, ordersLoading } = useApp();
+  const { ordersList, currentUser, ordersLoading, productsList, productVariants, cart, setCart, addActivity } = useApp();
 
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [buyAgainMessage, setBuyAgainMessage] = useState<{ orderId: string; text: string } | null>(null);
 
   // Toggle order expansion to view timeline maps
   const toggleExpand = (id: string) => {
     setExpandedOrderId(prev => prev === id ? null : id);
   };
 
-  // Helper determining timeline steps and progress percentage
-  const getProgressState = (status: string) => {
+  // Helper determining timeline steps and progress percentage.
+  // Dùng đúng enum status của LoggedOrder (types.ts) — không dùng chuỗi cũ đã lệch.
+  const getProgressState = (status: LoggedOrder["status"]) => {
     switch (status) {
       case "Chờ xác nhận":
         return { percent: 15, step: 1, text: "Nhận dệt đăng kiểm" };
-      case "Đang khâu dệt":
-        return { percent: 45, step: 2, text: "Kim khâu tay nghệ nhân 🧶" };
-      case "Đang vận chuyển":
-        return { percent: 75, step: 3, text: "Shipper lụa giao rảo phố" };
-      case "Đã giao":
+      case "Đã xác nhận":
+        return { percent: 35, step: 2, text: "Shop đã xác nhận đơn" };
+      case "Đang chuẩn bị hàng":
+        return { percent: 55, step: 2, text: "Kim khâu tay nghệ nhân 🧶" };
+      case "Đang giao":
+        return { percent: 80, step: 3, text: "Shipper lụa giao rảo phố" };
+      case "Hoàn tất":
         return { percent: 100, step: 4, text: "Trao hộp mộc lót hoa nhài" };
       case "Đã hủy":
         return { percent: 0, step: 0, text: "Đơn bị thôi dệt" };
       default:
         return { percent: 15, step: 1, text: "Cập nhật dệt" };
     }
+  };
+
+  // "Mua lại": kiểm tra sản phẩm/variant còn tồn tại + còn hàng, dùng GIÁ HIỆN TẠI
+  // (không dùng giá lúc mua), chỉ thêm vào giỏ — không tự đặt đơn.
+  const handleBuyAgain = (order: LoggedOrder) => {
+    const items = order.items ?? [];
+    if (items.length === 0) return;
+
+    let addedCount = 0;
+    const skipped: string[] = [];
+
+    setCart(prevCart => {
+      let nextCart = prevCart;
+      for (const item of items) {
+        const product = productsList.find(p => p.id === item.productId);
+        if (!product) {
+          skipped.push(`${item.productName} (sản phẩm không còn bán)`);
+          continue;
+        }
+        const matchedVariant = productVariants.find(
+          v => v.productId === item.productId && v.color === item.color && v.size === item.size
+        );
+        if (matchedVariant && matchedVariant.stockQuantity <= 0) {
+          skipped.push(`${item.productName} (${item.color}/${item.size} đã hết hàng)`);
+          continue;
+        }
+        const selectedMaterial = product.materials[0]?.name ?? "";
+        const id = `${product.id}_${item.color.replace(/\s+/g, "")}_${selectedMaterial.replace(/\s+/g, "")}_${item.size.replace(/\s+/g, "")}`;
+        const existing = nextCart.find(ci => ci.id === id);
+        const cartItem: CartItem = {
+          id,
+          product,
+          selectedColor: item.color,
+          selectedSize: item.size,
+          selectedMaterial,
+          quantity: item.quantity
+        };
+        nextCart = existing
+          ? nextCart.map(ci => ci.id === id ? { ...ci, quantity: ci.quantity + item.quantity } : ci)
+          : [...nextCart, cartItem];
+        addedCount += 1;
+      }
+      return nextCart;
+    });
+
+    if (addedCount > 0) {
+      addActivity("Mua lại từ lịch sử đơn", order.id, order.name, "cart");
+    }
+    setBuyAgainMessage({
+      orderId: order.id,
+      text: addedCount === 0
+        ? "Không thể thêm sản phẩm nào — tất cả đã ngừng bán hoặc hết hàng."
+        : skipped.length > 0
+        ? `Đã thêm ${addedCount} sản phẩm vào giỏ. Bỏ qua: ${skipped.join(", ")}.`
+        : `Đã thêm ${addedCount} sản phẩm vào giỏ hàng.`
+    });
   };
 
   return (
@@ -98,10 +161,10 @@ export default function OrdersPage() {
                         
                         {/* Interactive dynamic status badge */}
                         <span className={`text-[10px] font-sans font-bold px-2.5 py-0.5 rounded-full ${
-                          order.status === "Đã giao" ? "bg-green-100 text-green-700" :
+                          order.status === "Hoàn tất" ? "bg-green-100 text-green-700" :
                           order.status === "Chờ xác nhận" ? "bg-blue-100 text-blue-700" :
-                          order.status === "Đang khâu dệt" ? "bg-yellow-100 text-yellow-700" :
-                          order.status === "Đang vận chuyển" ? "bg-purple-100 text-purple-700" :
+                          order.status === "Đang chuẩn bị hàng" || order.status === "Đã xác nhận" ? "bg-yellow-100 text-yellow-700" :
+                          order.status === "Đang giao" ? "bg-purple-100 text-purple-700" :
                           "bg-red-100 text-red-700"
                         }`}>
                           {order.status}
@@ -136,7 +199,57 @@ export default function OrdersPage() {
                   {/* Expanded Tracker Timeline Details */}
                   {expand && (
                     <div className="border-t border-brand-primary/5 p-6 bg-[#FCFAF5]/50 space-y-8 animate-fadeIn">
-                      
+
+                      {/* Sản phẩm đã mua — ảnh snapshot tại thời điểm mua, fallback placeholder nếu đơn cũ thiếu ảnh */}
+                      {order.items && order.items.length > 0 && (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-1.5 font-bold text-brand-fb text-xs">
+                            <ShoppingBag size={13} className="text-brand-primary" />
+                            <span>Sản Phẩm Đã Đặt</span>
+                          </div>
+                          <div className="space-y-2">
+                            {order.items.map((item, idx) => (
+                              <div key={`${item.productId}_${idx}`} className="flex items-center gap-3 bg-white rounded-xl border border-brand-primary/5 p-2.5">
+                                <img
+                                  src={item.productImage || PLACEHOLDER_IMAGE}
+                                  alt={item.productName}
+                                  className="w-12 h-12 rounded-lg object-cover shrink-0 bg-brand-bg"
+                                  onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDER_IMAGE; }}
+                                />
+                                <div className="min-w-0 flex-grow text-left">
+                                  <p className="font-sans font-semibold text-xs text-brand-fb line-clamp-1">{item.productName}</p>
+                                  <p className="text-[10px] text-brand-fb/50 font-sans">{item.color} · {item.size} · SL {item.quantity}</p>
+                                </div>
+                                <strong className="font-mono text-xs text-brand-fb shrink-0">{item.subtotal.toLocaleString("vi-VN")}đ</strong>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Lý do hủy (nếu có) */}
+                          {order.status === "Đã hủy" && order.cancellationReason && (
+                            <div className="flex items-start gap-1.5 bg-red-50 text-red-700 rounded-lg p-2.5 text-[10px] font-sans">
+                              <AlertCircle size={12} className="shrink-0 mt-0.5" />
+                              <span>
+                                Lý do hủy ({order.cancelledBy === "admin" ? "Shop hủy" : "Bạn đã hủy"}): {order.cancellationReason}
+                              </span>
+                            </div>
+                          )}
+
+                          <div className="flex justify-end pt-1">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleBuyAgain(order); }}
+                              className="bg-brand-primary/10 hover:bg-brand-primary/15 text-brand-primary text-[11px] font-sans font-bold px-4 py-2 rounded-full cursor-pointer transition-colors flex items-center gap-1.5"
+                            >
+                              <RotateCcw size={12} />
+                              Mua Lại
+                            </button>
+                          </div>
+                          {buyAgainMessage?.orderId === order.id && (
+                            <p className="text-[10px] font-sans text-brand-fb/60 text-right">{buyAgainMessage.text}</p>
+                          )}
+                        </div>
+                      )}
+
                       {/* Timeline steps progress line layout */}
                       <div className="space-y-4">
                         <div className="relative pt-2">

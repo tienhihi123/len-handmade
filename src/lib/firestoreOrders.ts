@@ -65,6 +65,38 @@ export async function resolveVariantPlans(items: LoggedOrder["items"]): Promise<
 }
 
 /**
+ * Tra variantId cho từng item (khớp productId + color + size) — dùng để gắn
+ * `variantId` lên OrderItemDetail và tính `purchasedItemKeys` cho verified-purchase
+ * review. Query riêng với resolveVariantPlans (hàm đó gộp quantity theo variant,
+ * không giữ ánh xạ ngược về item gốc).
+ */
+async function resolveItemVariantIds(items: LoggedOrder["items"]): Promise<(string | undefined)[]> {
+  if (!db || !items) return [];
+  const firestore = db;
+  const cache = new Map<string, string | undefined>();
+  const results: (string | undefined)[] = [];
+  for (const item of items) {
+    const cacheKey = `${item.productId}__${item.color}__${item.size}`;
+    if (cache.has(cacheKey)) {
+      results.push(cache.get(cacheKey));
+      continue;
+    }
+    const snap = await getDocs(
+      query(
+        collection(firestore, "productVariants"),
+        where("productId", "==", item.productId),
+        where("color", "==", item.color),
+        where("size", "==", item.size)
+      )
+    );
+    const variantId = snap.empty ? undefined : snap.docs[0].id;
+    cache.set(cacheKey, variantId);
+    results.push(variantId);
+  }
+  return results;
+}
+
+/**
  * Tạo đơn + trừ tồn kho trong CÙNG MỘT transaction:
  * - Ghi orders/{orderId} và users/{uid}/orders/{orderId} (luôn đồng bộ 2 phía).
  * - Trừ stockQuantity từng variant, không cho âm, kèm inventoryTransactions log.
@@ -76,10 +108,18 @@ export async function createOrderInFirestore(userId: string, order: LoggedOrder)
   }
   const firestore = db;
   const variantPlans = await resolveVariantPlans(order.items);
+  const itemVariantIds = await resolveItemVariantIds(order.items);
+  const itemsWithVariant = (order.items ?? []).map((item, idx) => ({
+    ...item,
+    variantId: itemVariantIds[idx]
+  }));
+  const purchasedItemKeys = itemsWithVariant.map((item) => `${item.productId}_${item.variantId ?? "default"}`);
 
   const nowIso = new Date().toISOString();
   const payload = {
     ...sanitize(order),
+    items: itemsWithVariant,
+    purchasedItemKeys,
     userId,
     paymentStatus: order.paymentStatus ?? "unpaid",
     updatedAt: nowIso,

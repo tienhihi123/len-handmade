@@ -17,7 +17,7 @@ interface ChatbotProps {
 // FAQ intents with display label, icon, action key, and keyword fallback
 const FAQ_ITEMS = [
   { text: "Xem túi len", action: "view_bag", icon: ShoppingBag },
-  { text: "Tra cứu đơn hàng", action: "order_lookup", icon: Truck },
+  { text: "Đơn hàng của tôi", action: "order_lookup", icon: Truck },
   { text: "Phí vận chuyển", action: "shipping", icon: Truck },
   { text: "Thanh toán", action: "payment", icon: CreditCard },
   { text: "Mã giảm giá", action: "coupon", icon: Percent },
@@ -61,7 +61,7 @@ export default function Chatbot({ onShowCategory }: ChatbotProps) {
 
     // Order tracking
     if (actionType === "order_lookup" || lower.includes("đơn hàng") || lower.includes("tra cứu") || lower.includes("order")) {
-      return "Để tra cứu đơn hàng, bạn vào mục 'Tra cứu đơn' trên thanh menu (góc phải) hoặc vào Trang chủ > menu chính > Tra cứu đơn. Bạn chỉ cần nhập mã vận đơn hoặc email & số điện thoại là Mint-sẽ hiện trạng thái đơn nhen! 🚚✨";
+      return "Nếu bạn đã đăng nhập, đơn hàng của bạn sẽ tự động hiện trong mục 'Tài khoản > Đơn hàng của tôi' — không cần nhập mã đơn nữa nhen! Trường hợp bạn đặt hàng mà chưa có tài khoản, có thể liên hệ Mint qua trang Liên hệ để được hỗ trợ tra cứu ạ 🧶✨";
     }
 
     // Shipping

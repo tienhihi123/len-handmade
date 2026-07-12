@@ -1,14 +1,62 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate, Navigate } from "react-router-dom";
+import { useNavigate, Navigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { 
-  Sparkles, Gift, CheckCircle2, Copy, LogOut, ShieldAlert, Award, Calendar, CreditCard, Clock, Hourglass, Phone, MapPin, AlertCircle
+import {
+  Sparkles, Gift, CheckCircle2, Copy, LogOut, ShieldAlert, Award, Calendar, CreditCard, Clock, Hourglass, Phone, MapPin, AlertCircle,
+  User, Package, History, Star, Lock, ArrowRight
 } from "lucide-react";
 import { useApp } from "../context/AppContext";
+import OrdersPage from "./OrdersPage";
+import { subscribeToMyReviews } from "../lib/firestoreReviews";
+import type { Review } from "../types";
+
+const REVIEW_STATUS_LABEL: Record<NonNullable<Review["status"]>, string> = {
+  approved: "Đã duyệt",
+  pending: "Chờ duyệt",
+  hidden: "Đã ẩn"
+};
+
+type AccountTab = "overview" | "orders" | "history" | "reviews" | "security";
+
+const TABS: { id: AccountTab; label: string; icon: typeof User }[] = [
+  { id: "overview", label: "Tổng quan", icon: User },
+  { id: "orders", label: "Đơn hàng của tôi", icon: Package },
+  { id: "history", label: "Lịch sử", icon: History },
+  { id: "reviews", label: "Đánh giá của tôi", icon: Star },
+  { id: "security", label: "Bảo mật", icon: Lock }
+];
 
 export default function AccountPage() {
   const navigate = useNavigate();
-  const { currentUser, logoutUser, coinsWallet, setCoinsWallet, addActivity } = useApp();
+  const { currentUser, logoutUser, coinsWallet, setCoinsWallet, addActivity, activeCoupons, productsList } = useApp();
+  const [activeTab, setActiveTab] = useState<AccountTab>("overview");
+
+  const [myReviews, setMyReviews] = useState<Review[]>([]);
+  const [myReviewsLoading, setMyReviewsLoading] = useState(true);
+  const [myReviewsError, setMyReviewsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    setMyReviewsLoading(true);
+    setMyReviewsError(null);
+    const unsubscribe = subscribeToMyReviews(
+      currentUser.id,
+      (reviews) => {
+        setMyReviews(reviews);
+        setMyReviewsLoading(false);
+      },
+      () => {
+        setMyReviewsError("Không thể tải đánh giá của bạn lúc này. Vui lòng thử lại sau.");
+        setMyReviewsLoading(false);
+      }
+    );
+    return unsubscribe;
+  }, [currentUser?.id]);
+
+  const myReviewsSorted = [...myReviews].sort((a, b) => {
+    const parse = (d: string) => (Date.parse(d) || 0);
+    return parse(b.date) - parse(a.date);
+  });
 
   const [checkInDone, setCheckInDone] = useState(() => localStorage.getItem("mission_checkin_done") === "true");
   const [profileDone, setProfileDone] = useState(() => localStorage.getItem("mission_profile_done") === "true");
@@ -33,6 +81,15 @@ export default function AccountPage() {
   if (!currentUser) {
     return <Navigate to="/login" replace />;
   }
+
+  // Voucher thật từ activeCoupons (AppContext) — chỉ hiển thị mã còn hiệu lực (theo ngày + lượt dùng)
+  const nowMs = Date.now();
+  const validCoupons = activeCoupons.filter((coupon) => {
+    const started = !coupon.startDate || new Date(coupon.startDate).getTime() <= nowMs;
+    const notEnded = !coupon.endDate || new Date(coupon.endDate).getTime() >= nowMs;
+    const hasQuota = coupon.usageLimit === 0 || coupon.usedCount < coupon.usageLimit;
+    return started && notEnded && hasQuota;
+  });
 
   const handleCopyCode = (code: string) => {
     navigator.clipboard.writeText(code);
@@ -104,7 +161,144 @@ export default function AccountPage() {
           </button>
         </div>
 
-        {/* Dashboard split content */}
+        {/* Tab navigation */}
+        <div className="flex flex-wrap gap-2 border-b border-brand-primary/10 pb-4 -mt-2">
+          {TABS.map((tab) => {
+            const TabIcon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1.5 text-xs sm:text-sm font-sans font-bold px-4 py-2 rounded-full transition-colors cursor-pointer ${
+                  isActive
+                    ? "bg-brand-primary text-white shadow-sm"
+                    : "bg-white text-brand-fb/60 border border-brand-primary/10 hover:bg-brand-primary/5"
+                }`}
+              >
+                <TabIcon size={13} />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {activeTab === "orders" && (
+          <div className="-mx-4">
+            <OrdersPage />
+          </div>
+        )}
+
+        {activeTab === "history" && (
+          <div className="bg-white rounded-2xl border border-brand-primary/10 p-8 text-center space-y-3">
+            <History size={32} className="text-brand-primary/40 mx-auto" />
+            <h3 className="font-serif font-bold text-base text-brand-fb">Nhật ký hoạt động &amp; biến động số dư</h3>
+            <p className="font-sans text-xs text-brand-fb/60 max-w-sm mx-auto">
+              Lịch sử đơn hàng cơ bản đã có tại tab "Đơn hàng của tôi". Nhật ký hoạt động chi tiết và
+              biến động Xu (Ví) sẽ được bổ sung ở bản cập nhật tiếp theo.
+            </p>
+            <button
+              onClick={() => setActiveTab("orders")}
+              className="inline-flex items-center gap-1.5 text-xs font-sans font-bold text-brand-primary"
+            >
+              Xem lịch sử đơn hàng <ArrowRight size={12} />
+            </button>
+          </div>
+        )}
+
+        {activeTab === "reviews" && (
+          <div className="bg-white rounded-2xl border border-brand-primary/10 p-6 lg:p-8 space-y-4">
+            <h3 className="font-serif font-bold text-base text-brand-fb border-b border-brand-primary/10 pb-3 flex items-center gap-1.5">
+              <Star size={16} className="text-brand-primary" />
+              Đánh giá của tôi ({myReviewsSorted.length})
+            </h3>
+
+            {myReviewsLoading && (
+              <p className="font-sans text-xs text-brand-fb/50 italic animate-pulse text-center py-6">Đang tải đánh giá của bạn...</p>
+            )}
+
+            {!myReviewsLoading && myReviewsError && (
+              <p className="font-sans text-xs text-red-600 text-center py-6">{myReviewsError}</p>
+            )}
+
+            {!myReviewsLoading && !myReviewsError && myReviewsSorted.length === 0 && (
+              <div className="text-center py-6 space-y-2">
+                <Star size={32} className="text-brand-primary/40 mx-auto" />
+                <p className="font-sans text-xs text-brand-fb/60">Bạn chưa gửi đánh giá nào. Hãy để lại cảm nhận trên trang sản phẩm bạn đã mua nhé!</p>
+              </div>
+            )}
+
+            {!myReviewsLoading && !myReviewsError && myReviewsSorted.length > 0 && (
+              <div className="space-y-3">
+                {myReviewsSorted.map((rev) => {
+                  const product = productsList.find((p) => p.id === rev.productId);
+                  const cardInner = (
+                    <>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        {product ? (
+                          <span className="font-sans font-bold text-xs text-brand-primary group-hover:underline">
+                            {product.name}
+                          </span>
+                        ) : (
+                          <span className="font-sans font-bold text-xs text-brand-fb/50">Sản phẩm không còn tồn tại</span>
+                        )}
+                        <span className={`text-[9px] font-sans font-bold px-2 py-0.5 rounded-full ${
+                          rev.status === "approved" ? "bg-sage-accent/20 text-brand-fb"
+                          : rev.status === "hidden" ? "bg-red-100 text-red-700"
+                          : "bg-gold/20 text-brand-fb"
+                        }`}>
+                          {rev.status ? REVIEW_STATUS_LABEL[rev.status] : "Chờ duyệt"}
+                        </span>
+                      </div>
+                      <div className="flex text-yellow-500">
+                        {Array.from({ length: rev.rating }).map((_, i) => (
+                          <Star key={i} size={10} className="fill-current" />
+                        ))}
+                      </div>
+                      <p className="font-sans text-xs text-brand-fb/75 italic leading-relaxed">“{rev.text}”</p>
+                      {rev.date && (
+                        <span className="text-[9px] font-mono text-brand-fb/30 block">
+                          {Number.isNaN(Date.parse(rev.date)) ? rev.date : new Date(rev.date).toLocaleDateString("vi-VN")}
+                        </span>
+                      )}
+                    </>
+                  );
+                  // Bấm vào review -> mở đúng sản phẩm, cuộn tới đúng review (state
+                  // scrollToReviewId đọc ở ProductDetailPage). Không có gì để mở nếu
+                  // sản phẩm đã bị xoá -> hiển thị card tĩnh, không crash.
+                  return product ? (
+                    <Link
+                      key={rev.id}
+                      to={`/products/${product.id}`}
+                      state={{ scrollToReviewId: rev.id }}
+                      className="group block p-4 rounded-2xl border border-brand-primary/5 bg-brand-bg/40 space-y-2 text-left hover:border-brand-primary/20 hover:bg-brand-bg/70 transition-colors cursor-pointer"
+                    >
+                      {cardInner}
+                    </Link>
+                  ) : (
+                    <div key={rev.id} className="p-4 rounded-2xl border border-brand-primary/5 bg-brand-bg/40 space-y-2 text-left">
+                      {cardInner}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "security" && (
+          <div className="bg-white rounded-2xl border border-brand-primary/10 p-8 text-center space-y-3">
+            <Lock size={32} className="text-brand-primary/40 mx-auto" />
+            <h3 className="font-serif font-bold text-base text-brand-fb">Bảo mật &amp; đổi mật khẩu</h3>
+            <p className="font-sans text-xs text-brand-fb/60 max-w-sm mx-auto">
+              Tính năng đổi mật khẩu (qua Firebase Authentication) sẽ có ở bản cập nhật tiếp theo. Tài khoản
+              đăng nhập bằng Google/Facebook sẽ không cần đổi mật khẩu tại đây.
+            </p>
+          </div>
+        )}
+
+        {/* Dashboard split content — Tổng quan */}
+        {activeTab === "overview" && (
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
           
           {/* PROFILE CARD & WALLET SUMMARY */}
@@ -294,37 +488,44 @@ export default function AccountPage() {
               </div>
             </div>
 
-            {/* List vouchers list code copies clipboards */}
+            {/* Mã voucher — lấy từ activeCoupons thật (AppContext), không hardcode nữa */}
             <div className="pt-6 border-t border-brand-primary/5 space-y-4 text-left">
-              <h4 className="font-serif font-bold text-xs lg:text-sm text-brand-fb uppercase tracking-wider block">Mã Vouchers Sẵn Đúc Nồi</h4>
-              
-              <div className="p-4 lg:p-5 bg-brand-bg rounded-2xl border border-brand-primary/5 flex items-center justify-between">
-                <div className="space-y-1">
-                  <strong className="text-brand-primary font-mono text-sm lg:text-base block">WELCOME20</strong>
-                  <span className="text-[10px] lg:text-sm text-brand-fb/60 font-sans block">Chiết khấu 20% giảm kịch trần 100K VND trọn gói đơn đầu.</span>
-                </div>
-                <button
-                  onClick={() => handleCopyCode("WELCOME20")}
-                  className="bg-white hover:bg-brand-primary/10 text-brand-primary border border-brand-primary/10 hover:border-brand-primary text-[11px] lg:text-sm font-sans font-bold px-3.5 lg:px-4 py-2 lg:py-2.5 rounded-xl transition-all cursor-pointer flex items-center gap-1"
-                >
-                  {copiedCode === "WELCOME20" ? (
-                    <>
-                      <CheckCircle2 size={11} className="text-green-600" />
-                      <span>Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy size={11} />
-                      <span>Sao chép</span>
-                    </>
-                  )}
-                </button>
-              </div>
+              <h4 className="font-serif font-bold text-xs lg:text-sm text-brand-fb uppercase tracking-wider block">Mã Vouchers Đang Áp Dụng</h4>
+
+              {validCoupons.length === 0 ? (
+                <p className="text-[11px] font-sans text-brand-fb/50">Hiện chưa có mã giảm giá nào khả dụng.</p>
+              ) : (
+                validCoupons.map((coupon) => (
+                  <div key={coupon.code} className="p-4 lg:p-5 bg-brand-bg rounded-2xl border border-brand-primary/5 flex items-center justify-between">
+                    <div className="space-y-1">
+                      <strong className="text-brand-primary font-mono text-sm lg:text-base block">{coupon.code}</strong>
+                      <span className="text-[10px] lg:text-sm text-brand-fb/60 font-sans block">{coupon.name}</span>
+                    </div>
+                    <button
+                      onClick={() => handleCopyCode(coupon.code)}
+                      className="bg-white hover:bg-brand-primary/10 text-brand-primary border border-brand-primary/10 hover:border-brand-primary text-[11px] lg:text-sm font-sans font-bold px-3.5 lg:px-4 py-2 lg:py-2.5 rounded-xl transition-all cursor-pointer flex items-center gap-1"
+                    >
+                      {copiedCode === coupon.code ? (
+                        <>
+                          <CheckCircle2 size={11} className="text-green-600" />
+                          <span>Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={11} />
+                          <span>Sao chép</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
 
           </div>
 
         </div>
+        )}
       </div>
     </div>
   );

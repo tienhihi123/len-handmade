@@ -74,8 +74,7 @@ export default function Header() {
     { label: "Trang chủ", path: "/" },
     { label: "Sản phẩm", path: "/products" },
     { label: "Blog", path: "/blog" },
-    { label: "Liên hệ", path: "/contact" },
-    { label: "Tra cứu đơn", path: "/track-order" }
+    { label: "Liên hệ", path: "/contact" }
   ];
 
   const handleItemClick = (item: { label: string; path: string }) => {
@@ -139,8 +138,7 @@ export default function Header() {
               { label: "Sản phẩm", path: "/products" },
               { label: "Giới thiệu", path: "/about" },
               { label: "Blog", path: "/blog" },
-              { label: "Liên hệ", path: "/contact" },
-              { label: "Tra cứu đơn", path: "/track-order" }
+              { label: "Liên hệ", path: "/contact" }
             ].map((item) => {
               const isActive = location.pathname === item.path;
               return (

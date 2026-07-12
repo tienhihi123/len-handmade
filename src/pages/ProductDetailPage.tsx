@@ -61,6 +61,9 @@ export default function ProductDetailPage() {
   const [rating, setRating] = useState(5);
   const [reviewSent, setReviewSent] = useState(false);
   const [liveReviews, setLiveReviews] = useState<Review[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [reviewsError, setReviewsError] = useState<string | null>(null);
+  const [highlightedReviewId, setHighlightedReviewId] = useState<string | null>(null);
 
   // Trigger telemetry tracking and load default options
   useEffect(() => {
@@ -88,9 +91,36 @@ export default function ProductDetailPage() {
   // Live Firestore reviews for this product (no-op when Firebase isn't configured)
   useEffect(() => {
     if (!product) return;
-    const unsubscribe = subscribeToProductReviews(product.id, currentUser?.id, setLiveReviews);
+    setReviewsLoading(isFirebaseConfigured);
+    setReviewsError(null);
+    const unsubscribe = subscribeToProductReviews(
+      product.id,
+      currentUser?.id,
+      (reviews) => {
+        setLiveReviews(reviews);
+        setReviewsLoading(false);
+      },
+      () => {
+        setReviewsError("Không thể tải góp ý lúc này. Vui lòng thử lại sau.");
+        setReviewsLoading(false);
+      }
+    );
     return unsubscribe;
   }, [product?.id, currentUser?.id]);
+
+  // "Đánh giá của tôi" (AccountPage) điều hướng tới đây kèm state.scrollToReviewId.
+  // Chờ review tải xong (reviewsLoading=false) rồi mới cuộn — nếu review đã bị xoá/ẩn
+  // (không có element tương ứng trong DOM), chỉ bỏ qua, không crash.
+  useEffect(() => {
+    const targetReviewId = (location.state as { scrollToReviewId?: string } | null)?.scrollToReviewId;
+    if (!targetReviewId || !product || reviewsLoading) return;
+    const el = document.getElementById(`review-${targetReviewId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlightedReviewId(targetReviewId);
+    const timer = setTimeout(() => setHighlightedReviewId(null), 2500);
+    return () => clearTimeout(timer);
+  }, [location.state, product?.id, reviewsLoading]);
 
   if (!product) {
     return (
@@ -235,13 +265,27 @@ export default function ProductDetailPage() {
     setTimeout(() => setReviewSent(false), 3000);
   };
 
-  // Reviews for this product only: approved for everyone, plus the viewer's own pending/hidden ones
-  const productReviews: Review[] = [
-    ...reviewsList.filter(
-      (r) => r.productId === product.id && (r.status === "approved" || (currentUser && r.userId === currentUser.id))
-    ),
-    ...liveReviews
-  ];
+  // "Vừa xong" (just submitted, local-only) sorts as now; unparseable/legacy dates sort last.
+  const reviewSortKey = (rev: Review): number => {
+    if (rev.date === "Vừa xong") return Date.now();
+    const parsed = Date.parse(rev.date);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  };
+
+  // Reviews for this product only: approved for everyone, plus the viewer's own pending/hidden ones.
+  // Khi Firebase đã cấu hình: CHỈ dùng liveReviews (Firestore thật) — không trộn reviewsList
+  // (seed SAMPLE + cache localStorage) để tránh hiển thị dữ liệu mẫu lẫn với góp ý thật.
+  // reviewsList chỉ còn vai trò fallback demo khi Firebase chưa cấu hình.
+  const productReviews: Review[] = (
+    isFirebaseConfigured
+      ? [...liveReviews]
+      : [
+          ...reviewsList.filter(
+            (r) => r.productId === product.id && (r.status === "approved" || (currentUser && r.userId === currentUser.id))
+          ),
+          ...liveReviews
+        ]
+  ).sort((a, b) => reviewSortKey(b) - reviewSortKey(a));
 
   // 3 related products
   const relatedProducts = productsList.filter(p => p.category === product.category && p.id !== product.id).slice(0, 3);
@@ -724,21 +768,41 @@ export default function ProductDetailPage() {
 
         {/* CUSTOMER REVIEWS FOR THAT SPECIAL ITEM */}
         <div className="mt-20 grid grid-cols-1 lg:grid-cols-12 gap-12" id="product-detail-feedbacks">
-          
+
           <div className="lg:col-span-7 space-y-6">
             <h2 className="font-serif font-bold text-xl text-brand-fb text-left border-b border-brand-primary/10 pb-4">
               Cảm từ gọng chỉ dệt ({productReviews.length})
             </h2>
 
             <div className="space-y-4">
-              {productReviews.length === 0 && (
-                <p className="font-sans text-xs text-brand-fb/50 italic">
-                  Chưa có đánh giá nào cho mẫu này. Hãy là người đầu tiên chia sẻ cảm nhận!
+              {reviewsLoading && (
+                <p className="font-sans text-xs text-brand-fb/50 italic animate-pulse">
+                  Đang tải góp ý...
                 </p>
               )}
 
-              {productReviews.map((rev) => (
-                <div key={rev.id} className="p-6 bg-white rounded-2xl border border-brand-primary/5 shadow-sm text-left flex gap-5">
+              {!reviewsLoading && reviewsError && (
+                <p className="font-sans text-xs text-red-600">
+                  {reviewsError}
+                </p>
+              )}
+
+              {!reviewsLoading && !reviewsError && productReviews.length === 0 && (
+                <p className="font-sans text-xs text-brand-fb/50 italic">
+                  Chưa có góp ý nào cho mẫu này. Hãy là người đầu tiên chia sẻ cảm nhận!
+                </p>
+              )}
+
+              {!reviewsLoading && !reviewsError && productReviews.map((rev) => (
+                <div
+                  key={rev.id}
+                  id={`review-${rev.id}`}
+                  className={`p-6 rounded-2xl border shadow-sm text-left flex gap-5 transition-colors duration-500 ${
+                    highlightedReviewId === rev.id
+                      ? "bg-brand-primary/10 border-brand-primary/40 ring-2 ring-brand-primary/30"
+                      : "bg-white border-brand-primary/5"
+                  }`}
+                >
                   <img
                     src={rev.avatar}
                     alt={rev.author}
@@ -766,7 +830,7 @@ export default function ProductDetailPage() {
           {/* Add review form area */}
           <div className="lg:col-span-5">
             <div className="bg-white rounded-2xl p-4 lg:p-5 border border-brand-primary/10 shadow-sm text-left space-y-4">
-              <h3 className="font-serif font-bold text-md text-brand-fb">Góp Một Kim Sợi Ý</h3>
+              <h3 className="font-serif font-bold text-md text-brand-fb">Cảm từ gọng chỉ dệt</h3>
               <p className="font-sans text-xs text-brand-fb/60 pb-2">Nếu đã từng lướt hay ôm mẫu sợi này, hân hoan gõ dệt vài dòng làm quà tặng tinh thần cho các thợ Len nhé!</p>
 
               {!currentUser ? (
@@ -810,7 +874,7 @@ export default function ProductDetailPage() {
                     type="submit"
                     className="w-full bg-brand-primary hover:bg-brand-primary/90 text-white text-sm lg:text-base font-medium min-h-11 px-4 py-2.5 rounded-xl transition-colors duration-200 cursor-pointer"
                   >
-                    Gửi tặng đánh giá
+                    Gửi cảm từ
                   </button>
                 </form>
               )}

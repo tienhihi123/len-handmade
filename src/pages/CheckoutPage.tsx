@@ -142,6 +142,7 @@ export default function CheckoutPage() {
       return {
         productId: item.product.id,
         productName: item.product.name,
+        productImage: item.product.image,
         color: item.selectedColor,
         size: item.selectedSize,
         quantity: item.quantity,

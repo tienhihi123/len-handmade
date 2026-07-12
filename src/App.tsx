@@ -177,7 +177,7 @@ export default function App() {
           <div className="md:col-span-2 md:pl-4">
             <h4 className="text-xs font-bold tracking-widest text-white/90 uppercase mb-5 font-sans">Khám Phá</h4>
             <ul className="space-y-3.5 text-sm">
-              {["Trang chủ", "Thế giới Móc Sợi", "Tạp chí Sợi Len", "Kênh liên hệ", "Tra cứu đơn hàng"].map((item) => (
+              {["Trang chủ", "Thế giới Móc Sợi", "Tạp chí Sợi Len", "Kênh liên hệ"].map((item) => (
                 <li key={item}>
                   <a href="#" className="text-white/60 hover:text-[#A47E5C] transition-colors duration-200">{item}</a>
                 </li>

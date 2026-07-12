@@ -80,6 +80,21 @@ export interface Review {
   role: string;
   avatar: string;
   date: string;
+  // --- bổ sung cho verified-purchase review (không đổi tên field cũ ở trên) ---
+  orderId?: string;
+  variantId?: string;
+  // Chỉ true khi purchasedItemKeys của một đơn "Hoàn tất" thuộc đúng user chứa
+  // key `${productId}_${variantId ?? "default"}` này. Đơn cũ thiếu purchasedItemKeys
+  // KHÔNG được suy luận ngược — field này sẽ vắng mặt (không auto gắn true/false).
+  verifiedPurchase?: boolean;
+  createdAt?: string; // ISO — song song với `date` (giữ `date` cho UI cũ)
+  updatedAt?: string; // ISO
+  adminReply?: {
+    content: string;
+    repliedBy: string;
+    repliedAt: string; // ISO
+  };
+  moderationReason?: string; // bắt buộc nhập khi admin set status "hidden"
 }
 
 export interface Feedback {
@@ -177,6 +192,27 @@ export interface LoggedOrder {
   paidAt?: string;            // ISO — shop xác nhận đã nhận tiền
   refundedAt?: string;        // ISO
   updatedAt?: string;         // ISO — lần cập nhật gần nhất
+  // --- Hủy đơn: request (khách gửi/admin duyệt) tách khỏi trạng thái hủy cuối ---
+  cancellationRequest?: OrderCancellationRequest;
+  cancelledBy?: "customer" | "admin";
+  cancellationReason?: string;
+  cancelledAt?: string; // ISO
+  // --- Verified-purchase review: key `${productId}_${variantId ?? "default"}` cho từng item.
+  // Chỉ có trên đơn MỚI (ghi tại thời điểm tạo đơn) — đơn cũ thiếu field này sẽ undefined,
+  // không được migrate/backfill tự động.
+  purchasedItemKeys?: string[];
+}
+
+export type OrderCancellationStatus = "pending" | "approved" | "rejected";
+
+export interface OrderCancellationRequest {
+  status: OrderCancellationStatus;
+  requestedBy: "customer" | "admin";
+  requestReason: string;
+  requestedAt: string; // ISO
+  resolvedBy?: string;
+  resolutionReason?: string;
+  resolvedAt?: string; // ISO
 }
 
 // Thông báo cho shop (collection shopNotifications) — khách báo chuyển khoản
@@ -196,6 +232,8 @@ export interface ShopNotification {
 export interface OrderItemDetail {
   productId: string;
   productName: string;
+  productImage?: string; // snapshot tại thời điểm mua — đơn cũ có thể thiếu, cần fallback UI
+  variantId?: string;
   color: string;
   size: string;
   quantity: number;
@@ -364,4 +402,66 @@ export interface RefundRequest {
   processedBy?: string;
   processedAt?: string;
   idempotencyKey: string;
+}
+
+// ============================================================
+// WALLET LEDGER (users/{uid}/walletTransactions/{id})
+// Phase B (đợt này): chỉ đọc + hiển thị. Không có writer client-side cho
+// earn/refund/adjustment trong scope này — xem ghi chú trong walletService.
+// ============================================================
+export type WalletTransactionType = "earn" | "spend" | "refund" | "adjustment";
+
+export interface WalletTransaction {
+  id: string;
+  type: WalletTransactionType;
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  description: string;
+  referenceType?: "order" | "review" | "promotion" | "admin";
+  referenceId?: string;
+  idempotencyKey: string;
+  createdAt: string; // ISO
+}
+
+// ============================================================
+// ACTIVITY LOG (Firestore, users/{uid}/activityLogs/{id})
+// Chỉ để hiển thị lịch sử hoạt động cho khách xem lại — KHÔNG phải security
+// audit log hay dữ liệu kế toán đáng tin cậy (đó là vai trò của AuditLogEntry
+// / Cloud Function ở tầng khác, ngoài scope). Đặt tên khác `UserActivityLog`
+// (loại cũ ở src/data/authAndTracking.mock.ts, local-only) để tránh trùng.
+// ============================================================
+export type FirestoreActivityType =
+  | "login"
+  | "profile_updated"
+  | "password_changed"
+  | "order_created"
+  | "payment_reported"
+  | "cancellation_requested"
+  | "order_cancelled"
+  | "review_created"
+  | "review_updated"
+  | "balance_changed";
+
+export interface FirestoreUserActivityLog {
+  id: string;
+  type: FirestoreActivityType;
+  title: string;
+  description: string;
+  referenceId?: string;
+  metadata?: Record<string, string | number | boolean | null>;
+  createdAt: string; // ISO
+}
+
+// ============================================================
+// UNIQUE PRODUCT VIEWS (productViews/{productId}_{uid})
+// Nguồn sự thật duy nhất cho lượt xem duy nhất theo tài khoản đã đăng nhập.
+// Chỉ tính cho user đã đăng nhập — không tính guest view trong phase này.
+// ============================================================
+export interface ProductUniqueView {
+  productId: string;
+  userId: string;
+  firstViewedAt: string; // ISO
+  lastViewedAt: string;  // ISO
+  source?: "detail" | "search" | "category" | "home";
 }
