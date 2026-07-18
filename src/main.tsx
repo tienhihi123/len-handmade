@@ -5,6 +5,9 @@ import { AppProvider } from "./context/AppContext";
 import { AdminAuthProvider } from "./context/AdminAuthContext";
 import App from "./App.tsx";
 import "./index.css";
+import { injectSpeedInsights } from '@vercel/speed-insights';
+
+injectSpeedInsights();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
