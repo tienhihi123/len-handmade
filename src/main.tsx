@@ -1,13 +1,11 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { AppProvider } from "./context/AppContext";
 import { AdminAuthProvider } from "./context/AdminAuthContext";
 import App from "./App.tsx";
 import "./index.css";
-import { injectSpeedInsights } from '@vercel/speed-insights';
-
-injectSpeedInsights();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -15,6 +13,7 @@ createRoot(document.getElementById("root")!).render(
       <AdminAuthProvider>
         <BrowserRouter>
           <App />
+          <SpeedInsights />
         </BrowserRouter>
       </AdminAuthProvider>
     </AppProvider>
